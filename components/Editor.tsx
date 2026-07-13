@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { RotateCcw, Star, Trash2, X } from 'lucide-react'
+import CatCover from '@/components/CatCover'
 import { charCount, formatDate } from '@/lib/format'
 import type { Post } from '@/lib/store'
 
@@ -85,6 +86,8 @@ export default function Editor({
             </span>
           </div>
         )}
+
+        <CatCover key={`cover-${post.id}`} />
 
         <input
           key={post.id}

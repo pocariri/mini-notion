@@ -1,6 +1,6 @@
 import { describe, test, expect, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Editor from './Editor'
 import type { Post } from '@/lib/store'
@@ -138,5 +138,89 @@ describe('Editor 글자 수 카운터', () => {
       />
     )
     expect(screen.getByText('5자')).toBeInTheDocument()
+  })
+})
+
+function renderEditor(post: Post) {
+  return render(
+    <Editor
+      post={post}
+      navLabel="워크스페이스"
+      nickname="테스터"
+      focusTitle={false}
+      onPatch={noop}
+      onToggleFavorite={noop}
+      onTrash={noop}
+      onRestore={noop}
+      onDeleteForever={noop}
+    />
+  )
+}
+
+describe('Editor 고양이 커버 통합 (US1)', () => {
+  test('커버 이미지가 제목 입력창보다 앞(위)에 렌더된다 (FR-001)', () => {
+    renderEditor(makePost())
+    const cover = screen.getByTestId('cover-image')
+    const title = screen.getByPlaceholderText('제목 없음')
+    expect(
+      cover.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  test('다른 글로 전환하면 커버가 새 src로 다시 로드된다 (FR-007, FR-008)', () => {
+    const { rerender } = renderEditor(makePost({ id: 'post-1' }))
+    const src1 = screen.getByTestId('cover-image').getAttribute('src')
+
+    rerender(
+      <Editor
+        post={makePost({ id: 'post-2' })}
+        navLabel="워크스페이스"
+        nickname="테스터"
+        focusTitle={false}
+        onPatch={noop}
+        onToggleFavorite={noop}
+        onTrash={noop}
+        onRestore={noop}
+        onDeleteForever={noop}
+      />
+    )
+    const src2 = screen.getByTestId('cover-image').getAttribute('src')
+    expect(src2).not.toBe(src1)
+  })
+
+  test('휴지통(readOnly) 글에서도 커버가 렌더된다', () => {
+    renderEditor(makePost({ deletedAt: Date.now() }))
+    expect(screen.getByTestId('cover-image')).toBeInTheDocument()
+  })
+})
+
+// 아래 두 테스트는 구성상 처음부터 통과하는 회귀 가드다(TDD 드라이버 아님).
+// 커버 로딩·실패가 편집을 차단하지 않는다는 스펙 보장(FR-005, FR-006, SC-003, SC-004)이
+// 이후 변경으로 깨지지 않도록 지킨다.
+describe('Editor 고양이 커버 회귀 가드 (US2·US3)', () => {
+  test('커버가 로딩 중(load 이벤트 전)에도 제목 타이핑이 즉시 반영된다 (FR-006, SC-003)', async () => {
+    const user = userEvent.setup()
+    render(<Harness initialPost={makePost()} />)
+
+    expect(screen.getByTestId('cover-skeleton')).toBeInTheDocument()
+    const titleInput = screen.getByPlaceholderText('제목 없음')
+    await user.type(titleInput, '고양이 일지')
+
+    expect(titleInput).toHaveValue('고양이 일지')
+    expect(screen.getByTestId('cover-skeleton')).toBeInTheDocument()
+  })
+
+  test('커버 로드 실패 후에도 내용 편집과 카운터가 정상 동작한다 (FR-005, SC-004)', async () => {
+    const user = userEvent.setup()
+    render(<Harness initialPost={makePost({ content: '' })} />)
+
+    fireEvent.error(screen.getByTestId('cover-image'))
+    expect(screen.getByTestId('cover-fallback')).toBeInTheDocument()
+
+    const contentInput = screen.getByPlaceholderText('여기에 내용을 입력하세요.')
+    await user.type(contentInput, '안녕')
+
+    expect(contentInput).toHaveValue('안녕')
+    expect(screen.getByText('2자')).toBeInTheDocument()
   })
 })

@@ -54,7 +54,7 @@ hairline borders, soft radii, whisper shadows.
 
 ## 3. 디자인 토큰 (Design Tokens)
 
-`:root`의 CSS 변수 **총 91개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. (근거: `app/globals.css:7-117`)
+`:root`의 CSS 변수 **총 92개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. (근거: `app/globals.css:7-118`)
 
 ### 3.1 Neutral scale (14개) — `app/globals.css:8-22`
 
@@ -170,7 +170,7 @@ hairline borders, soft radii, whisper shadows.
 | `--ls-snug` | `-0.01em` | -0.01em | 브랜드명 자간 |
 | `--ls-wide` | `0.04em` | 0.04em | 섹션 라벨·뱃지 자간(대문자풍 라벨) |
 
-### 3.9 Radius / elevation / motion (17개) — `app/globals.css:99-116`
+### 3.9 Radius / elevation / motion (18개) — `app/globals.css:99-117`
 
 | 토큰명 | 값(원문) | 해석 | 용도/의미 |
 |---|---|---|---|
@@ -191,8 +191,9 @@ hairline borders, soft radii, whisper shadows.
 | `--dur-fast` | `120ms` | 120ms | 배경·보더·색 전환 기본 |
 | `--dur-base` | `180ms` | 180ms | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-slow` | `260ms` | 260ms | (정의됨, 직접 사용처 확인 불가) |
+| `--dur-shimmer` | `1400ms` | 1400ms | 커버 스켈레톤 pulse 주기(`.cover-skeleton`, §5.14) |
 
-> **토큰 합계 검증**: Neutral 14 + Accent 8 + Semantic 8 + Surfaces 7 + Text 6 + Borders 3 + Accent roles 5 + Typography 23 + Radius/elevation/motion 17 = **91개** (코드 `:root` 실측치 91과 일치).
+> **토큰 합계 검증**: Neutral 14 + Accent 8 + Semantic 8 + Surfaces 7 + Text 6 + Borders 3 + Accent roles 5 + Typography 23 + Radius/elevation/motion 18 = **92개** (코드 `:root` 실측치 92와 일치).
 
 ---
 
@@ -412,7 +413,7 @@ body {
 ### 5.8 Detail / editor — `app/globals.css:666-785` · `components/Editor.tsx`
 
 - **목적/역할**: 3-pane의 3번째 pane, 글 상세/편집. 대응 와이어프레임: 1f·1g.
-- **해부(구조)**: `.detail` → `.detail-inner` → `.detail-toolbar`(`.breadcrumb`(+`.crumb-title`+`.save-state`) + `.toolbar-actions`(즐겨찾기 칩 + 삭제 btn-danger)) → (휴지통이면 `.trash-banner`) → `.title-input` → `.doc-meta` → `.doc-divider` → `.content-input` → `.content-counter`.
+- **해부(구조)**: `.detail` → `.detail-inner` → `.detail-toolbar`(`.breadcrumb`(+`.crumb-title`+`.save-state`) + `.toolbar-actions`(즐겨찾기 칩 + 삭제 btn-danger)) → (휴지통이면 `.trash-banner`) → `.cover`(랜덤 고양이 커버, §5.14) → `.title-input` → `.doc-meta` → `.doc-divider` → `.content-input` → `.content-counter`.
 - **핵심 수치/토큰**:
 
 | 요소 | 값 |
@@ -432,8 +433,8 @@ body {
 | `.trash-banner` | `justify-content:space-between`, `gap:10px`, `margin-bottom:26px`, `padding:10px 14px`, `border:1px solid color-mix(in srgb, --red-500 25%, transparent)`(#e5484d 25%), `border-radius:--radius-lg`, `background:--red-50`(#fceceb), `--text-sm`, `color:--red-500` |
 | `.trash-banner-actions` | `gap:6px` |
 
-- **상태**: 이 섹션의 인풋들은 자체 focus 스타일 없이 `outline:none`(포커스 표시는 커서). 휴지통 상태에서 `.title-input`/`.content-input`은 `readOnly`(`Editor.tsx:96, 112`).
-- **React(`components/Editor.tsx`)**: props에 `post, navLabel, nickname, focusTitle, onPatch, onToggleFavorite, onTrash, onRestore, onDeleteForever`. `inTrash = post.deletedAt !== null`. **자동 높이 조절**: `useEffect`로 `content` 변할 때 textarea를 `height:auto → scrollHeight`로 grow(`Editor.tsx:35-40`). 브레드크럼: `{navLabel} › {제목|'제목 없음'}` + (비휴지통) `· 저장됨 {formatDate(updatedAt)}`. 툴바(비휴지통): 즐겨찾기 칩(`Star size={14}`, on이면 `fill="currentColor"`) + 삭제 `btn btn-danger`(`Trash2 size={14}`). 휴지통 배너: 문구 + 복원(`RotateCcw size={14}`)·영구 삭제(`X size={14}`). 제목 placeholder "제목 없음", 내용 placeholder "여기에 내용을 입력하세요.". `.doc-meta` = `작성 {createdAt} · 수정 {updatedAt} · {nickname}`. `autoFocus={focusTitle && !inTrash}`. **글자 수 카운터(`.content-counter`)**: `.content-input` 바로 뒤, `lib/format.ts`의 `charCount(text) = text.length`로 계산한 `{charCount(post.content)}자`를 무조건 렌더(제목 변경·휴지통 상태와 무관, `readOnly` 여부와 무관하게 항상 표시). `.detail`이 스크롤 컨테이너이므로 `position: sticky; bottom: 16px`가 편집 영역 하단에 고정되어 스크롤 중에도 항상 보인다.
+- **상태**: 이 섹션의 인풋들은 자체 focus 스타일 없이 `outline:none`(포커스 표시는 커서). 휴지통 상태에서 `.title-input`/`.content-input`은 `readOnly`(`Editor.tsx:99, 115`).
+- **React(`components/Editor.tsx`)**: props에 `post, navLabel, nickname, focusTitle, onPatch, onToggleFavorite, onTrash, onRestore, onDeleteForever`. `inTrash = post.deletedAt !== null`. **커버**: 제목 입력창 바로 위에 `<CatCover key={`cover-${post.id}`} />` 렌더(`Editor.tsx:90`) — key 리마운트로 글 전환 시 새 랜덤 커버, 휴지통 글에서도 표시(§5.14). ※ 형제 `<input key={post.id}>`와의 key 충돌을 피하려고 `cover-` 접두사를 쓴다. **자동 높이 조절**: `useEffect`로 `content` 변할 때 textarea를 `height:auto → scrollHeight`로 grow(`Editor.tsx:36-41`). 브레드크럼: `{navLabel} › {제목|'제목 없음'}` + (비휴지통) `· 저장됨 {formatDate(updatedAt)}`. 툴바(비휴지통): 즐겨찾기 칩(`Star size={14}`, on이면 `fill="currentColor"`) + 삭제 `btn btn-danger`(`Trash2 size={14}`). 휴지통 배너: 문구 + 복원(`RotateCcw size={14}`)·영구 삭제(`X size={14}`). 제목 placeholder "제목 없음", 내용 placeholder "여기에 내용을 입력하세요.". `.doc-meta` = `작성 {createdAt} · 수정 {updatedAt} · {nickname}`. `autoFocus={focusTitle && !inTrash}`. **글자 수 카운터(`.content-counter`)**: `.content-input` 바로 뒤, `lib/format.ts`의 `charCount(text) = text.length`로 계산한 `{charCount(post.content)}자`를 무조건 렌더(제목 변경·휴지통 상태와 무관, `readOnly` 여부와 무관하게 항상 표시). `.detail`이 스크롤 컨테이너이므로 `position: sticky; bottom: 16px`가 편집 영역 하단에 고정되어 스크롤 중에도 항상 보인다.
 
 ### 5.9 Empty state — `app/globals.css:787-833` · `app/workspace/page.tsx:212-235`
 
@@ -516,6 +517,22 @@ body {
 
 - **의도**: 레일·목록을 좁히고 상세 좌우 여백을 줄여 본문 폭 확보. 모바일 전용 재배치(스택/드로어)는 없음.
 
+### 5.14 Cover (랜덤 고양이 커버) — `app/globals.css:721-774` · `components/CatCover.tsx`
+
+- **목적/역할**: 에디터 제목 입력창 바로 위의 장식 커버. 매 진입 시 cataas 오픈 API(`https://cataas.com/cat/cute`)에서 새 랜덤 고양이 사진을 가져온다(비저장). 스펙: `specs/002-cat-cover-image/`.
+- **해부(구조)**: `.cover`(고정 박스) → 상태에 따라 `.cover-skeleton`(로딩) / `.cover-img`(로드됨) / `.cover-fallback`(실패). 세 상태 모두 같은 박스를 차지해 레이아웃 시프트가 없다.
+- **핵심 수치/토큰**:
+
+| 요소 | 값 |
+|---|---|
+| `.cover` | `position:relative`, `width:100%`, `height:180px` 고정, `margin:0 0 18px`, `border-radius:--radius-lg`(12px), `overflow:hidden` |
+| `.cover-skeleton` | `position:absolute; inset:0`, `background:--gray-100`, `cover-pulse` 키프레임(`--gray-100↔--gray-150` 배경 교차)을 `--dur-shimmer`(1400ms) 주기로 무한 반복; `prefers-reduced-motion: reduce`에서 `animation:none`(정적) |
+| `.cover-img` | `display:block`, `width/height:100%`, `object-fit:cover`; `[hidden]`이면 `display:none`(로딩 중 가림) |
+| `.cover-fallback` | flex 중앙정렬, `width/height:100%`, `border:1px solid --border-subtle`, `border-radius:--radius-lg`, `background:--gray-100`, `color:--text-disabled` |
+
+- **상태**: `loading`(마운트 직후, 스켈레톤 + 이미지 hidden) → `load` 이벤트 → `loaded`(이미지 표시) / `error` 이벤트 → `error`(폴백: lucide `Cat` 22 아이콘, 오류 문구 없음). 회전 스피너는 어떤 상태에도 없다.
+- **React(`components/CatCover.tsx`)**: props 없음. `useState` 초기화 함수로 마운트 시 1회 `?width=760&_={nonce}` 캐시버스터 URL 생성(리렌더에 불변 — cataas 응답에 캐시 헤더가 없어 nonce 없이는 브라우저 캐시가 같은 고양이를 재사용할 수 있음). `Editor`가 `key={`cover-${post.id}`}`로 렌더해 글 전환 시 리마운트(상태 초기화 + 늦은 응답의 경쟁 조건 차단). 접근성: 장식 요소로 `img alt=""`, 스켈레톤·폴백 `aria-hidden="true"`. testid: `cover-image`/`cover-skeleton`/`cover-fallback`.
+
 ---
 
 ## 6. 레이아웃 & 화면 (Layouts & Screens)
@@ -536,7 +553,7 @@ body {
   - `trash`: 삭제됨, `deletedAt` 내림차순.
   - `default`(all): 미삭제, `createdAt` 내림차순.
   - 검색어(`q`)는 제목/내용 소문자 포함 필터.
-- **상세(1f·1g)**: 선택된 글이 있으면 `<Editor>`, 없으면 빈 상태.
+- **상세(1f·1g)**: 선택된 글이 있으면 `<Editor>`(제목 위에 랜덤 고양이 커버, §5.14), 없으면 빈 상태(커버 없음).
 - **`/page` 슬래시 메뉴 흐름**: 프롬프트에 `/` 입력 → 포커스 상태면 슬래시 메뉴 open(`PromptBox.tsx:33`). `query`로 `SLASH_ITEMS` 필터(`key.startsWith(query)`). enabled 항목은 `page`뿐 → 하이라이트. Enter/전송/행 클릭 시 `page`면 빈 제목 새 글 생성. 슬래시 아닌 일반 텍스트 + Enter → 그 텍스트를 제목으로 생성(`PromptBox.tsx:41-48`).
 - **생성 후 동작(`handleCreate`, `workspace/page.tsx:93-99`)**: nav를 `all`로, 검색 비우고, 새 글 선택. 제목 없이 만들면 `focusId`로 제목 입력에 자동 포커스.
 - **반응형**: §5.13대로 ≤1024px에서 레일 220 / 리스트 280 / 상세 여백 축소.
@@ -579,6 +596,8 @@ body {
 - 영구 삭제: `window.confirm('이 글을 영구 삭제할까요? 되돌릴 수 없어요.')` 후 `deletePostForever`(배열에서 제거, `store.tsx:175-177`; `workspace/page.tsx:101-105`).
 
 **호버/포커스 피드백**: 인터랙티브 표면은 hover 시 `--surface-hover`, 입력 컨테이너는 `:focus-within`에서 `--accent` 보더 + `--shadow-focus`(3px, #6a5df0 40%).
+
+**커버 스켈레톤 pulse** (`components/CatCover.tsx`, §5.14): 커버 로딩 동안 `.cover-skeleton`이 `cover-pulse` 키프레임으로 `--gray-100↔--gray-150` 배경을 `--dur-shimmer`(1400ms) 주기로 교차(스피너 금지). `prefers-reduced-motion: reduce`에서는 애니메이션을 끄고 정적 `--gray-100`으로 표시.
 
 **트랜지션 duration/ease 사용 규칙**: 코드에서 실제로 쓰이는 조합은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`) 하나로 통일. 전이 속성은 컴포넌트별로 `background`/`border-color`/`color`/`box-shadow` 조합. (`--dur-base`, `--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
 
@@ -625,6 +644,7 @@ body {
   - `Rail.tsx`: `Search`(14), `FileText`·`Star`·`Clock`·`Trash2`(15), `Settings`(15).
   - `PromptBox.tsx`: `ArrowUp`(16, 전송), `FileText`·`CheckSquare`·`Heading1`(15, 슬래시 행).
   - `Editor.tsx`: `Star`(14), `Trash2`(14), `RotateCcw`(14), `X`(14).
+  - `CatCover.tsx`: `Cat`(22, 커버 로드 실패 폴백).
   - `workspace/page.tsx`: `FileText`(22, empty), `Star`(11, 목록 별), `RotateCcw`·`X`(12, 휴지통 액션).
   - `me/page.tsx`: `ArrowLeft`·`ImagePlus`·`LogOut`·`UserRound`·`X`(14~15).
 - **GoogleLogo**(`components/GoogleLogo.tsx`): 브랜드 4색 SVG. `viewBox="0 0 48 48"`, 기본 `size=18`, `aria-hidden="true"`. 색상 원문: `#FFC107`, `#FF3D00`, `#4CAF50`, `#1976D2`. 로그인 버튼에 사용.
@@ -649,7 +669,7 @@ body {
 
 | 디자인 요소 | 소스 파일:라인 |
 |---|---|
-| 디자인 토큰 91개(`:root`) | `app/globals.css:7-117` |
+| 디자인 토큰 92개(`:root`) | `app/globals.css:7-118` |
 | body 기본/타이포/selection | `app/globals.css:119-157` |
 | Buttons | `app/globals.css:159-231` |
 | Chip | `app/globals.css:233-258` |
@@ -659,6 +679,7 @@ body {
 | Prompt box + slash menu | `app/globals.css:449-572` / `components/PromptBox.tsx` |
 | Post list | `app/globals.css:574-664` / `app/workspace/page.tsx:136-191` |
 | Detail / editor | `app/globals.css:666-785` / `components/Editor.tsx` |
+| 랜덤 고양이 커버 | `app/globals.css:721-774` / `components/CatCover.tsx` |
 | Empty state | `app/globals.css:787-833` / `app/workspace/page.tsx:212-235` |
 | Login | `app/globals.css:835-890` / `app/login/page.tsx` |
 | Splash | `app/globals.css:892-899` / `app/page.tsx` |
