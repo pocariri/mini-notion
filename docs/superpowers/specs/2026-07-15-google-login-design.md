@@ -49,8 +49,10 @@ Supabase Auth 기반의 **실제 Google OAuth 로그인**으로 교체한다.
   - 기본값: Google 계정의 `user_metadata.full_name`(없으면 이메일 로컬 파트), `email`, `user_metadata.avatar_url`.
   - 그 위에 **로컬 수정 오버레이**를 병합. 오버레이는 localStorage에 Supabase uid별 키
     (`mini-notion:user-overlay:<uid>`)로 저장하며 `/me`의 별명·이미지 수정이 여기에 기록된다.
-- `login()` → `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } })`.
-  PKCE 흐름: 복귀 시 supabase-js가 URL의 인증 코드를 자동 교환(`detectSessionInUrl` 기본값)해 세션 복원.
+- `login()` → `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/login` } })`.
+  PKCE 흐름: 복귀 시 supabase-js가 URL의 인증 코드를 자동 교환(`detectSessionInUrl`)해 세션 복원.
+  복귀 랜딩을 `/login`으로 두면 성공 시 로그인 페이지의 기존 가드가 `/workspace`로 보내고,
+  취소/실패 시 `?error=` 파라미터를 로그인 페이지가 바로 표시할 수 있다.
 - `logout()` → `supabase.auth.signOut()`.
 - `resetAll()` → 로컬 데이터(글·오버레이) 삭제 + `signOut()`. Supabase 계정 자체는 삭제하지 않는다.
 - 시드 글: 로컬에 저장된 글이 없는 첫 로그인 시 기존 시드 로직 유지. 글 저장 키(`mini-notion:posts`)는 기존 그대로.
@@ -62,11 +64,12 @@ Supabase Auth 기반의 **실제 Google OAuth 로그인**으로 교체한다.
 - `setTimeout` 가짜 로그인 제거 → `login()` 호출. 성공 시 브라우저가 Google로 떠나므로 busy 유지.
 - `signInWithOAuth`가 에러를 반환하면 busy 해제 + 에러 문구 표시.
 - OAuth 취소/실패로 쿼리에 `error`가 붙어 돌아오면 로그인 페이지에서 안내 문구 표시.
-- UI 구조·디자인 토큰 변경 없음 (DESIGN.md 변경 불필요. 에러 문구는 기존 `.login-note` 계열 토큰 재사용).
+- UI 구조 변경 없음. 에러 문구용 `.login-error` 클래스를 기존 토큰(`--text-2xs`, `--red-500`)만으로 추가하고,
+  새 컴포넌트 상태이므로 `DESIGN.md` §5.10 Login을 동기화한다.
 
 ### 4. 라우팅·세션 흐름
 
-- 로그인 복귀 랜딩은 `/`(origin). 기존 `app/page.tsx`가 user 유무로 `/workspace`·`/login` 분기 — 새 라우팅 코드 없음.
+- 로그인 복귀 랜딩은 `/login`. 로그인 페이지의 기존 가드(user 있으면 `/workspace`)가 이동을 처리 — 새 라우팅 코드 없음.
 - 라우트 보호는 기존 클라이언트 사이드 가드(useEffect redirect) 유지.
 - 토큰 자동 갱신은 supabase-js 기본값(`autoRefreshToken`) 사용.
 
