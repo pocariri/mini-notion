@@ -10,6 +10,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from './supabase'
 
 export type User = {
   nickname: string
@@ -31,8 +33,8 @@ type Store = {
   ready: boolean
   user: User | null
   posts: Post[]
-  login: () => void
-  logout: () => void
+  login: () => Promise<{ error: string | null }>
+  logout: () => Promise<void>
   updateUser: (patch: Partial<User>) => void
   createPost: (title?: string, content?: string) => string
   updatePost: (id: string, patch: Partial<Pick<Post, 'title' | 'content'>>) => void
@@ -40,11 +42,20 @@ type Store = {
   trashPost: (id: string) => void
   restorePost: (id: string) => void
   deletePostForever: (id: string) => void
-  resetAll: () => void
+  resetAll: () => Promise<void>
 }
 
-const USER_KEY = 'mini-notion:user'
 const POSTS_KEY = 'mini-notion:posts'
+// 가짜 로그인 시절의 사용자 키 — 실제 세션과 섞이지 않도록 초기화 시 제거한다.
+const LEGACY_USER_KEY = 'mini-notion:user'
+
+const overlayKey = (uid: string) => `mini-notion:user-overlay:${uid}`
+
+// Google 계정 초기값 위에 /me에서 수정한 값을 덮어쓰는 로컬 오버레이.
+// image는 "명시적으로 제거(null)"와 "수정한 적 없음(키 없음)"을 구분한다.
+type Overlay = { nickname?: string; image?: string | null }
+
+type AuthUser = { uid: string; base: User }
 
 const StoreContext = createContext<Store | null>(null)
 
@@ -54,6 +65,28 @@ function loadJSON<T>(key: string): T | null {
     return raw ? (JSON.parse(raw) as T) : null
   } catch {
     return null
+  }
+}
+
+function userFromSession(session: Session | null): AuthUser | null {
+  const su = session?.user
+  if (!su) return null
+  const email = su.email ?? ''
+  const meta = su.user_metadata ?? {}
+  const fullName =
+    typeof meta.full_name === 'string' && meta.full_name
+      ? meta.full_name
+      : typeof meta.name === 'string'
+        ? meta.name
+        : ''
+  const avatar = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
+  return {
+    uid: su.id,
+    base: {
+      nickname: fullName || email.split('@')[0] || '사용자',
+      email,
+      image: avatar,
+    },
   }
 }
 
@@ -100,41 +133,75 @@ function seedPosts(now: number): Post[] {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [overlay, setOverlay] = useState<Overlay>({})
   const [posts, setPosts] = useState<Post[]>([])
   const hadStoredPosts = useRef(false)
 
   useEffect(() => {
+    localStorage.removeItem(LEGACY_USER_KEY)
     hadStoredPosts.current = localStorage.getItem(POSTS_KEY) !== null
-    setUser(loadJSON<User>(USER_KEY))
     setPosts(loadJSON<Post[]>(POSTS_KEY) ?? [])
-    setReady(true)
+
+    let cancelled = false
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return
+      setAuthUser(userFromSession(session))
+      setReady(true)
+    })
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(userFromSession(session))
+    })
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [])
 
+  const uid = authUser?.uid ?? null
+
+  // 계정이 바뀌면 그 계정의 로컬 수정분(오버레이)을 불러온다.
   useEffect(() => {
-    if (!ready) return
-    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
-    else localStorage.removeItem(USER_KEY)
-  }, [user, ready])
+    setOverlay(uid ? (loadJSON<Overlay>(overlayKey(uid)) ?? {}) : {})
+  }, [uid])
+
+  // 이 브라우저에서 글을 저장한 적 없는 첫 로그인이면 시드 글을 만든다.
+  useEffect(() => {
+    if (!uid || hadStoredPosts.current) return
+    setPosts(seedPosts(Date.now()))
+    hadStoredPosts.current = true
+  }, [uid])
 
   useEffect(() => {
     if (!ready) return
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts))
   }, [posts, ready])
 
-  const login = useCallback(() => {
-    setUser({ nickname: '유아이볼', email: 'uibowl@gmail.com', image: null })
-    if (!hadStoredPosts.current) {
-      setPosts(seedPosts(Date.now()))
-      hadStoredPosts.current = true
-    }
+  const login = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/login` },
+    })
+    return { error: error?.message ?? null }
   }, [])
 
-  const logout = useCallback(() => setUser(null), [])
-
-  const updateUser = useCallback((patch: Partial<User>) => {
-    setUser((u) => (u ? { ...u, ...patch } : u))
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut()
   }, [])
+
+  const updateUser = useCallback(
+    (patch: Partial<User>) => {
+      if (!uid) return
+      const next: Overlay = { ...overlay }
+      if (patch.nickname !== undefined) next.nickname = patch.nickname
+      if ('image' in patch) next.image = patch.image ?? null
+      setOverlay(next)
+      localStorage.setItem(overlayKey(uid), JSON.stringify(next))
+    },
+    [uid, overlay],
+  )
 
   const createPost = useCallback((title = '', content = '') => {
     const now = Date.now()
@@ -176,13 +243,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPosts((ps) => ps.filter((p) => p.id !== id))
   }, [])
 
-  const resetAll = useCallback(() => {
+  const resetAll = useCallback(async () => {
     setPosts([])
-    setUser(null)
+    setOverlay({})
     localStorage.removeItem(POSTS_KEY)
-    localStorage.removeItem(USER_KEY)
+    if (uid) localStorage.removeItem(overlayKey(uid))
     hadStoredPosts.current = false
-  }, [])
+    await supabase.auth.signOut()
+  }, [uid])
+
+  const user = useMemo<User | null>(() => {
+    if (!authUser) return null
+    const { base } = authUser
+    return {
+      nickname: overlay.nickname ?? base.nickname,
+      email: base.email,
+      image: 'image' in overlay ? (overlay.image ?? null) : base.image,
+    }
+  }, [authUser, overlay])
 
   const value = useMemo<Store>(
     () => ({
