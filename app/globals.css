@@ -957,6 +957,12 @@ button.chip:hover {
   color: var(--text-tertiary);
 }
 
+.login-error {
+  margin: 16px 0 0;
+  font-size: var(--text-2xs);
+  color: var(--red-500);
+}
+
 .google-btn {
   width: 100%;
 }

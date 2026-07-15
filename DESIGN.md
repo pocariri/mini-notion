@@ -8,7 +8,7 @@
 
 ## 1. 개요 (Overview)
 
-**제품 한 줄 정의**: "mini notion — 개인 업무를, 내 방식대로." 구글(목) 로그인 후 글(페이지)을 만들고·수정하고·정리·삭제하는, 유료 구독 없는 1인용 미니 노션.
+**제품 한 줄 정의**: "mini notion — 개인 업무를, 내 방식대로." 구글 로그인(Supabase Auth) 후 글(페이지)을 만들고·수정하고·정리·삭제하는, 유료 구독 없는 1인용 미니 노션.
 (근거: `app/layout.tsx:14` `title: 'mini notion — 개인 업무를, 내 방식대로'`, `app/login/page.tsx:31-32`, `02-prd.md:1-5`)
 
 **이 문서의 목적/범위**: 코드가 사라져도 이 문서만으로 동일한 UI를 재현할 수 있도록, 디자인 토큰 91개·컴포넌트 13개·화면 5개·상태/변형/모션을 무손실로 보존한다. 범위는 **디자인/구현에 드러난 시각·인터랙션 시스템**이며, 서버/배포 아키텍처는 다루지 않는다.
@@ -465,9 +465,10 @@ body {
 | `.login-title` | `margin:0 0 6px`, `font-size:--text-h1`(26px), `--fw-bold`, `--ls-tight` |
 | `.login-tagline` | `margin:0 0 28px`, `--text-sm`, `--text-tertiary` |
 | `.login-note` | `margin:16px 0 0`, `--text-2xs`, `--text-tertiary` |
+| `.login-error` | `margin:16px 0 0`, `--text-2xs`, `color:--red-500`(#e5484d) — Google 로그인 실패·취소 안내, `role="alert"` |
 | `.google-btn` | `width:100%` |
 
-- **React(`app/login/page.tsx`)**: 로고 "m", 제목 "mini notion", 태그라인 "개인 업무를, 내 방식대로.", 버튼 `GoogleLogo size={18}` + "Google 계정으로 계속하기"(진행 중이면 "Google로 이동 중…", `disabled={busy}`), 노트 "첫 로그인 시 자동으로 계정이 생성됩니다.". 클릭 시 500ms 후 `login()` + `/workspace`로 이동(목 인증).
+- **React(`app/login/page.tsx`)**: 로고 "m", 제목 "mini notion", 태그라인 "개인 업무를, 내 방식대로.", 버튼 `GoogleLogo size={18}` + "Google 계정으로 계속하기"(진행 중이면 "Google로 이동 중…", `disabled={busy}`), 노트 "첫 로그인 시 자동으로 계정이 생성됩니다.". 클릭 시 `login()`이 Supabase `signInWithOAuth({ provider: 'google' })`로 실제 Google OAuth 리다이렉트(복귀 랜딩 `/login`, 로그인되면 기존 가드가 `/workspace`로 이동). 시작 실패·취소 시 `.login-error` 문구 표시.
 
 ### 5.11 Splash — `app/globals.css:892-899` · `app/page.tsx`
 
