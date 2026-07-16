@@ -471,7 +471,7 @@ body {
   - 로우 내용: 제목 없으면 "제목 없음" + `untitled`. 스니펫은 `content.split('\n')[0]`이며 `content`가 있을 때만 렌더. 메타는 `formatDate(createdAt)` 하나뿐(별 표시·nav별 날짜 분기 없음).
 - **`.list-notice`(`app/workspace/page.tsx:106-113`)**: `pagesStatus`와 무관하게 `notice`가 있으면 프롬프트 박스 바로 아래, 섹션 라벨 위에 뜬다. `role="alert"` + 닫기 버튼(`X size={12}`, `aria-label="알림 닫기"` → `dismissNotice`). 낙관적 생성/삭제가 실패해 화면을 되돌렸을 때 그 사실을 알리는 유일한 표면이다(§7).
 
-### 5.8 Detail / editor — `app/globals.css:718-894` · `components/Editor.tsx`
+### 5.8 Detail / editor — `app/globals.css:885-1066` · `components/Editor.tsx`
 
 - **목적/역할**: 3-pane의 3번째 pane, 페이지 상세/편집. 대응 와이어프레임: 1f·1g.
 - **해부(구조)**: `.detail` → `.detail-inner` → `.detail-toolbar`(`.breadcrumb`(+`.crumb-title`+`.save-state`) + `.toolbar-actions`(삭제 btn-danger 하나)) → `.cover`(랜덤 고양이 커버, §5.14) → `.title-input` → `.doc-meta` → `.doc-divider` → `.content-input` → `.content-counter`.
@@ -520,7 +520,7 @@ body {
 
 - **React**: 아이콘 `FileText size={22}`. 헤드라인 `{nickname}님,<br/>무엇을 기록할까요?`. 본문 "왼쪽 페이지를 고르거나 '/page'로 새 페이지를 시작하세요.". 추천 칩 = `SUGGESTIONS = ['주간 업무 정리', '할 일 적기', '회의 메모']`(`app/workspace/page.tsx:12`), 클릭 시 그 텍스트를 제목으로 새 페이지 생성.
 
-### 5.10 Login — `app/globals.css:944-1005` · `app/login/page.tsx`
+### 5.10 Login — `app/globals.css:1116-1177` · `app/login/page.tsx`
 
 - **목적/역할**: 중앙 카드형 로그인. 대응 와이어프레임: 1d.
 - **해부**: `.login-page`(중앙정렬 컨테이너) → `.login-card`(`.login-logo` + `.login-title` + `.login-tagline` + `.btn btn-lg google-btn` + `.login-note`).
@@ -538,17 +538,17 @@ body {
 
 - **React(`app/login/page.tsx`)**: 로고 "m", 제목 "mini notion", 태그라인 "개인 업무를, 내 방식대로.", 버튼 `GoogleLogo size={18}` + "Google 계정으로 계속하기"(진행 중이면 "Google로 이동 중…", `disabled={busy}`), 노트 "첫 로그인 시 자동으로 계정이 생성됩니다.". 클릭 시 `login()`이 Supabase `signInWithOAuth({ provider: 'google' })`로 실제 Google OAuth 리다이렉트(복귀 랜딩 `/login`, 로그인되면 기존 가드가 `/workspace`로 이동). 시작 실패·취소 시 `.login-error` 문구 표시.
 
-### 5.11 Splash — `app/globals.css:1007-1014` · `app/page.tsx`
+### 5.11 Splash — `app/globals.css:1179-1186` · `app/page.tsx`
 
 - **목적/역할**: 로딩/리다이렉트 대기 스플래시. 대응 React: `app/page.tsx`, 워크스페이스/마이페이지의 미준비 상태에서도 재사용(`app/workspace/page.tsx:52-58`, `app/me/page.tsx:41-47`).
 - **해부**: `.splash`(중앙정렬, `min-height:100dvh`, `background:--surface-sunken`) 안에 `.login-logo`("m") 하나.
 - **React(`app/page.tsx`)**: `ready`가 되면 `user ? '/workspace' : '/login'`으로 `router.replace`. 그동안 `<div className="splash"><span className="login-logo">m</span></div>` 표시.
 
-### 5.12 Settings (my page) — `app/globals.css:1016-1143` · `app/me/page.tsx`
+### 5.12 Settings (my page) — `app/globals.css:1188-1341` · `app/me/page.tsx`
 
 - **목적/역할**: 마이 페이지(프로필/계정 탭). 대응 와이어프레임: 1i.
 - **해부**: 좌측 `.rail`(설정 내비: 프로필/계정 + "업무로 돌아가기") + 우측 `.settings-body`.
-  - 프로필 탭: `.settings-title` + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`/`.save-error`).
+  - 프로필 탭: `.settings-title` + (조회 실패 시 오류 `.save-row`) + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + 별명 `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + 자기소개 `.field-block`(`.section-label` + `.field.field-multi`(textarea + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`/`.save-error`).
   - 계정 탭: `.account-row` × 2(이메일 / 연결된 계정 `.badge`) + `.danger-zone`(로그아웃 btn + 초기화 btn-danger).
 
 | 요소 | 값 |
@@ -560,7 +560,11 @@ body {
 | `.hint` | `margin:6px 0 0`, `--text-xs`, `--text-tertiary` |
 | `.field-block` | `margin-bottom:26px` |
 | `.field` | `justify-content:space-between`, `gap:10px`, `width:340px`, `max-width:100%`, `padding:9px 12px`, `border:1px solid --border-default`, `border-radius:--radius-md`, `background:--surface-card` |
-| `.field input` | `flex:1`, `border:none`, `outline:none`, `background:transparent`, `font-weight:--fw-semibold` |
+| `.field input` | `flex:1`, `min-width:0`, `border:none`, `outline:none`, `background:transparent`, `font-weight:--fw-semibold` |
+| `.field-multi` | `flex-direction:column`, `align-items:stretch` — 여러 줄 변형. 보더·radius·표면·`:focus-within`은 `.field`에서 상속 |
+| `.field-multi .counter` | `align-self:flex-end` — 카운터를 우하단으로 |
+| `.field textarea` | `border:none`, `outline:none`, `resize:none`, `background:transparent`, `padding:0`, `width:100%`, `font-size:--text-base`, `line-height:--lh-relaxed` — `.field input`과 분리(semibold 미상속, 본문은 regular) |
+| `.field textarea::placeholder` | `color:--text-tertiary` |
 | `.counter` | `flex:none`, `font-family:--font-mono`, `--text-2xs`, `--text-tertiary` |
 | `.save-row` | `gap:12px` |
 | `.saved-note` | `--text-xs`, `color:--green-500`(#35b37e) |
@@ -571,10 +575,10 @@ body {
 | `.badge` | `padding:2px 8px`, `border-radius:--radius-sm`, `background:--accent-soft`, `color:--text-accent`, `--text-micro`, `--fw-semibold`, `--ls-wide` |
 | `.danger-zone` | `gap:8px`, `margin-top:30px` |
 
-- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid || saving}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출.
-- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`, `me/page.tsx:168-170`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm('모든 페이지와 계정 정보를 삭제할까요? 되돌릴 수 없어요.', me/page.tsx:84`) 후 `resetAll()`(서버의 페이지 행 삭제 + 프로필 행을 Google 기본값으로 되돌리고 signOut, §8) → `/login`.
+- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`(`.field-multi`도 동일 상속). 저장 버튼은 `disabled={!dirty || !valid || saving || profileStatus !== 'ready'}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출. **프로필 조회 실패(`profileStatus === 'error'`)** 시 프로필 탭 상단에 `.save-error`(role="alert") "프로필을 불러오지 못했어요." + `btn` "재시도"(`retryProfile()`)를 노출하고, 별명 input·자기소개 textarea·이미지 변경/제거 버튼·저장 버튼을 전부 `disabled` 처리한다(보지 못한 값 덮어쓰기 차단, `specs/003-profile-introduction/` FR-019·020).
+- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`, `MAX_INTRODUCTION = 150`, `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB). 별명 input `maxLength={20}` + `aria-label="별명"`, 카운터 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 자기소개 textarea `maxLength={150}` + `rows={3}` + `aria-label="자기소개"` + placeholder "자신을 간단히 소개해 보세요.", 카운터 `#{introduction.length}/{MAX_INTRODUCTION}`(예: `#12/150`), 힌트 "150자까지 남길 수 있어요.", 저장 시 trim — 빈 결과는 null("자기소개 없음")로 저장. 폼 하이드레이션은 `profileStatus === 'ready'`(프로필 조회 완료)에 게이트되어 1회 실행 — 조회 완료 전에는 스플래시가 유지된다(Google 기본값이 DB 값을 덮어쓰는 경쟁 차단). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`, `name`·`image`·`introduction` 원자적 1회) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm('모든 페이지와 계정 정보를 삭제할까요? 되돌릴 수 없어요.')` 후 `resetAll()`(서버의 페이지 행 삭제 + 프로필 행을 Google 기본값으로, 자기소개는 null로 되돌리고 signOut, §8) → `/login`.
 
-### 5.13 Responsive (light) — `app/globals.css:1317-1330`
+### 5.13 Responsive (light) — `app/globals.css:1343-1356`
 
 - **목적/역할**: 좁은 화면(≤1024px)에서 3-pane 폭 축소. "(light)"는 가벼운 조정만 한다는 의도.
 - **브레이크포인트**: `@media (max-width: 1024px)`.
@@ -646,9 +650,9 @@ body {
 ### 6.4 `/me` 마이 페이지 (와이어프레임 1i) — `app/me/page.tsx`
 
 - **구조**: `.workspace` 프레임 재사용 — 좌측 `.rail`(설정 내비: 프로필/계정 탭 + `ThemeToggle`(§5.15) + "업무로 돌아가기" 링크) + 우측 `.settings-body`.
-- **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
+- **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + 자기소개 필드(여러 줄 textarea, `#n/150` 카운터, 선택 항목) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
 - **계정 탭**: 이메일 행, 연결된 계정 뱃지(GOOGLE), danger-zone(로그아웃 / 모든 데이터 초기화).
-- **동작**: 폼 초기값은 최초 1회만 사용자 정보에서 hydrate(`me/page.tsx:33-39`). `dirty`(변경됨) & `valid`(별명 비어있지 않음) & 저장 중이 아닐 때만 저장 가능. 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
+- **동작**: 폼 초기값은 프로필 조회 완료(`profileStatus === 'ready'`) 후 최초 1회만 hydrate — 조회 완료 전에는 스플래시 유지. `dirty`(변경됨) & `valid`(별명 비어있지 않음 — 자기소개는 비어도 유효) & 저장 중 아님 & `profileStatus === 'ready'`일 때만 저장 가능. 조회 실패 시 폼 전체 비활성 + 오류 안내 + "재시도" 버튼(`retryProfile`). 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
 
 ### 6.5 스플래시 (Splash) — `app/page.tsx`
 
@@ -694,17 +698,18 @@ body {
 
 ## 8. 데이터 모델 (Data Model, 디자인 영향분) — `lib/store.tsx`
 
-페이지는 **Supabase `public.page` 테이블이 진실의 원천**이다. 스토어는 로그인 계정의 행을 `created_at` 내림차순으로 읽어 오고(`store.tsx:181-207`), 모든 쓰기는 서버로 간다. 브라우저 `localStorage`에는 Supabase 인증 세션만 남고 **페이지는 저장되지 않는다**.
+페이지는 **Supabase `public.page` 테이블이 진실의 원천**이다. 스토어는 로그인 계정의 행을 `created_at` 내림차순으로 읽어 오고, 모든 쓰기는 서버로 간다. 브라우저 `localStorage`에는 Supabase 인증 세션만 남고 **페이지는 저장되지 않는다**.
 
 **테마 상태** (`lib/store.tsx` + `lib/theme.ts`): `Store.theme: 'light' | 'dark'`(유효 테마)와 `toggleTheme()`. 영속 키 `mini-notion:theme`(값 `"light"|"dark"`, 부재 = 선택 없음 → OS 설정 따름). 초기값은 인라인 스크립트가 설정한 `<html data-theme>`에서 읽는다. "모든 데이터 초기화"(`resetAll`)는 이 키를 보존한다 — 테마는 계정 데이터가 아니라 기기 설정.
 
-**`User` 타입 필드 전량** (`store.tsx:16-20`):
+**`User` 타입 필드 전량** (`store.tsx:17-22`):
 
 | 필드 | 타입 | 디자인 영향 |
 |---|---|---|
 | `nickname` | `string` | 최대 20자(`MAX_NICKNAME`, `me/page.tsx:12`), `#n/20` 카운터, "{nickname}님" 표기 |
 | `email` | `string` | 계정 탭 이메일 행 표시 |
 | `image` | `string \| null` | 프로필 이미지(Google 사진 URL 또는 업로드 dataURL). null이면 아바타에 닉네임 첫 글자 |
+| `introduction` | `string \| null` | 자기소개(선택). 최대 150자(`MAX_INTRODUCTION`, `me/page.tsx:13`), `#n/150` 카운터, 여러 줄 평문. null="없음"(placeholder 표시) |
 
 **`Page` 타입 필드 전량** (`store.tsx:24-29`) — `public.page` 한 행에 대응하며 필드는 **4개뿐**이다. 코드·UI 모두 "페이지(Page)"로 통일되어 있다:
 
@@ -727,14 +732,14 @@ body {
 그 밖에 스토어는 `notice: string \| null`(+`dismissNotice`)를 노출하며, 이는 `.list-notice`의 표시 여부와 문구를 그대로 결정한다(`store.tsx:42-43`).
 
 **디자인 제약으로 이어지는 값**:
-- 별명 최대 20자 → `#n/20` 카운터(`me/page.tsx:168-170`).
-- 프로필 이미지 5MB 이하(`MAX_IMAGE_BYTES = 5 * 1024 * 1024`) + `image/*`만. 초과 시 "5MB 이하 이미지만 업로드할 수 있어요." 알림(`me/page.tsx:52-65`).
+- 별명 최대 20자 → `#n/20` 카운터. 자기소개 최대 150자 → `#n/150` 카운터(하드 캡, 저장 시 trim·빈 값은 null).
+- 프로필 이미지 5MB 이하(`MAX_IMAGE_BYTES = 5 * 1024 * 1024`) + `image/*`만. 초과 시 "5MB 이하 이미지만 업로드할 수 있어요." 알림.
 - **시드 샘플 없음**: 첫 로그인 시 데모 글을 만들어 주는 시드는 더 이상 없다. 새 계정은 `public.page`에 행이 없으므로 **빈 목록(`.list-empty`) + 상세 빈 상태**로 시작한다 — 이 두 화면이 신규 사용자의 첫인상이다.
-- **계정 전환/로그아웃**: 계정이 바뀌거나 로그아웃하면 이전 목록을 즉시 버리고(`setPages([])`) 다시 불러온다(`store.tsx:181-187`). 비로그인이면 `pagesStatus`를 바로 `'ready'`로 둬 스켈레톤이 남지 않게 한다.
-- **소유자 필터**: 조회의 `.eq('user_id', uid)`는 명확성·전송량을 위한 것이지 보안 경계가 아니다 — RLS가 애초에 남의 행을 주지 않는다(`store.tsx:179-180` 주석).
-- **사용자 파생**: Supabase 세션(Google 이름·이메일·사진)이 기본값, 그 위에 `public.profile` 행(`name`/`image`, auth.users와 1:1)을 병합(`store.tsx`의 `user` memo). 프로필 행은 최초 로그인 시 DB 트리거(`on_auth_user_created` → `handle_new_user()`)가 Display name·아바타로 생성하고, `/me` 저장 시 upsert로 덮어쓴다.
-- **localStorage**: 앱이 직접 쓰는 키는 없다(Supabase 인증 세션만 남는다). 부팅 시 레거시 키 `mini-notion:user`·`mini-notion:posts`·`mini-notion:user-overlay:<uid>`를 **제거**한다(`store.tsx:134-140`). 특히 `mini-notion:posts`에 남아 있던 옛 글은 서버로 **옮기지 않고 버린다**(`store.tsx:62-64` 주석) — 마이그레이션 UI가 없는 것은 의도된 선택이다.
-- **초기화(`resetAll`)**: 로컬만 비우면 재로그인 시 되살아나므로 서버의 `public.page` 행을 계정 단위로 삭제하고, 프로필 행을 Google 기본값으로 되돌린 뒤 대기 중인 저장·타이머를 모두 취소하고 signOut한다(`store.tsx:373-390`).
+- **계정 전환/로그아웃**: 계정이 바뀌거나 로그아웃하면 이전 목록을 즉시 버리고(`setPages([])`) 다시 불러온다. 비로그인이면 `pagesStatus`를 바로 `'ready'`로 둬 스켈레톤이 남지 않게 한다.
+- **소유자 필터**: 조회의 `.eq('user_id', uid)`는 명확성·전송량을 위한 것이지 보안 경계가 아니다 — RLS가 애초에 남의 행을 주지 않는다.
+- **사용자 파생**: Supabase 세션(Google 이름·이메일·사진)이 기본값, 그 위에 `public.profile` 행(`name`/`image`/`introduction`, auth.users와 1:1)을 병합(`store.tsx`의 `user` memo — `introduction`은 Google 기본값이 없어 행 값 그대로, 없으면 null). 프로필 행은 최초 로그인 시 DB 트리거(`on_auth_user_created` → `handle_new_user()`)가 Display name·아바타로 생성하고, `/me` 저장 시 upsert로 덮어쓴다. 조회 상태는 `profileStatus('loading'|'ready'|'error')`로 노출되며 실패 시 `retryProfile()`로 재조회, `ready`가 아니면 `updateUser`가 저장을 거부한다(덮어쓰기 차단).
+- **localStorage**: 앱이 데이터 저장에 쓰는 키는 테마(`mini-notion:theme`)·사이드바 접힘(`mini-notion:sidebar-collapsed`) 같은 기기 설정뿐이다(그 외에는 Supabase 인증 세션만 남는다). 부팅 시 레거시 키 `mini-notion:user`·`mini-notion:posts`·`mini-notion:user-overlay:<uid>`를 **제거**한다. 특히 `mini-notion:posts`에 남아 있던 옛 글은 서버로 **옮기지 않고 버린다** — 마이그레이션 UI가 없는 것은 의도된 선택이다.
+- **초기화(`resetAll`)**: 로컬만 비우면 재로그인 시 되살아나므로 서버의 `public.page` 행을 계정 단위로 삭제하고, 프로필 행을 Google 기본값(자기소개는 null)으로 되돌린 뒤 대기 중인 저장·타이머를 모두 취소하고 signOut한다. 테마·사이드바 접힘 키는 기기 설정이라 보존한다.
 
 **`formatDate`** (`lib/format.ts`): `< 60s` → "방금", `< 1h` → "n분 전", `< 24h` → "n시간 전", 그 이상 → "M월 D일". 화면의 상대 시간 표기는 `.listrow-meta`(`workspace/page.tsx:155`)와 `.doc-meta`(`Editor.tsx:79`) 두 곳뿐이고, 둘 다 `createdAt`을 이 함수 하나로 포맷한다. 저장 시점은 시간이 아니라 `.save-state`의 상태 라벨로 표현한다(§5.8).
 
@@ -758,7 +763,7 @@ body {
 
 ## 10. 접근성 & 반응형 (Accessibility & Responsive)
 
-**포커스 가시성**: 입력 컨테이너(`.rail-search`, `.promptbox-inner`, `.field`)는 `:focus-within`에서 `border-color:--accent` + `box-shadow:--shadow-focus`(= `0 0 0 3px` / `--focus-ring` = `color-mix(in srgb, --violet-500 40%, transparent)`). 텍스트 입력·에디터 인풋은 `outline:none`으로 브라우저 기본 아웃라인을 제거(포커스 표시는 커서/컨테이너 링에 의존).
+**포커스 가시성**: 입력 컨테이너(`.rail-search`, `.promptbox-inner`, `.field` — 여러 줄 변형 `.field-multi` 포함)는 `:focus-within`에서 `border-color:--accent` + `box-shadow:--shadow-focus`(= `0 0 0 3px` / `--focus-ring` = `color-mix(in srgb, --violet-500 40%, transparent)`). 텍스트 입력·에디터 인풋·`.field textarea`는 `outline:none`으로 브라우저 기본 아웃라인을 제거(포커스 표시는 커서/컨테이너 링에 의존). /me 폼 입력에는 명시적 접근성 이름이 있다(`aria-label="별명"`/`"자기소개"`).
 
 **대비**: 본문 `--text-primary`(#2f2f2b) on `--white`(#ffffff)로 높은 대비. 3차 텍스트 `--text-tertiary`(#90908a)는 메타/플레이스홀더용 저대비(※ WCAG AA 정량 검증은 코드에 없음 — 확인 불가).
 
@@ -766,7 +771,7 @@ body {
 
 **실패·상태 알림의 보조 표기**: 사용자가 놓치면 안 되는 실패는 모두 `role="alert"`로 알린다 — `.list-error`(불러오기 실패), `.list-notice`(낙관적 갱신 롤백), `.save-state.err`(저장 실패, `saveStatus==='error'`일 때만 `role`이 붙는다), `.login-error`, `.save-error`. 반대로 `.listrow-skeleton`은 `aria-hidden="true"`로 자리표시가 읽히지 않게 하고, `.list-notice`의 닫기 버튼은 `aria-label="알림 닫기"`를 갖는다. 색(danger red)에만 의존하지 않도록 문구가 항상 함께 제공된다.
 
-**반응형(`Responsive (light)`, `app/globals.css:1317-1330`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 `--rail-width` 260→220px 재정의(접힘 폭 56px은 불변), 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
+**반응형(`Responsive (light)`, `app/globals.css:1343-1356`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 `--rail-width` 260→220px 재정의(접힘 폭 56px은 불변), 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
 
 ---
 
@@ -790,8 +795,8 @@ body {
 | Empty state | `app/globals.css:1068-1114` / `app/workspace/page.tsx` |
 | Login | `app/globals.css:1116-1177` / `app/login/page.tsx` |
 | Splash | `app/globals.css:1179-1186` / `app/page.tsx` |
-| Settings (my page) | `app/globals.css:1188-1315` / `app/me/page.tsx` |
-| Responsive | `app/globals.css:1317-1330` |
+| Settings (my page) | `app/globals.css:1188-1341` / `app/me/page.tsx` |
+| Responsive | `app/globals.css:1343-1356` |
 | 폰트 로딩 | `app/layout.tsx:6-11` |
 | 전역 프레임/Provider | `app/layout.tsx:18-30` |
 | 상태·데이터 모델 | `lib/store.tsx` |

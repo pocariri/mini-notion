@@ -18,6 +18,7 @@ export type User = {
   nickname: string
   email: string
   image: string | null
+  introduction: string | null
 }
 
 // public.page 한 행. 저장 구조가 확정되어 있어 이 네 가지가 담을 수 있는 전부다.
@@ -33,6 +34,9 @@ export type Page = {
 // 이걸 구분하지 않으면 로딩 중에 "페이지가 없어요"가 번쩍인다.
 export type PagesStatus = 'loading' | 'ready' | 'error'
 export type SaveStatus = 'saved' | 'saving' | 'error'
+// 프로필 행 조회의 명시적 상태 — profile이 null인 것만으로는
+// "로딩 중 / 행 없음 / 조회 실패"를 구분할 수 없어서 따로 둔다.
+export type ProfileStatus = 'loading' | 'ready' | 'error'
 
 type Store = {
   ready: boolean
@@ -44,6 +48,8 @@ type Store = {
   dismissNotice: () => void
   theme: Theme
   toggleTheme: () => void
+  profileStatus: ProfileStatus
+  retryProfile: () => void
   login: () => Promise<{ error: string | null }>
   logout: () => Promise<void>
   updateUser: (patch: Partial<User>) => Promise<{ error: string | null }>
@@ -73,7 +79,12 @@ const LEGACY_PAGES_KEY = 'mini-notion:posts'
 // Supabase public.profile 행(auth.users와 1:1). 최초 로그인 시 DB 트리거가
 // Google 이름·사진을 초기값으로 만들어 주고, /me에서 수정하면 이 행을 덮어쓴다.
 // image는 "명시적으로 제거"를 null로 저장한다(행이 있으면 DB 값이 진실).
-type Profile = { name: string | null; image: string | null }
+// introduction은 자기소개(선택 항목) — "없음"의 정규 표현은 null이며 ''를 저장하지 않는다.
+type Profile = {
+  name: string | null
+  image: string | null
+  introduction: string | null
+}
 
 type PageRow = {
   id: string
@@ -124,6 +135,8 @@ function userFromSession(session: Session | null): AuthUser | null {
       nickname: fullName || email.split('@')[0] || '사용자',
       email,
       image: avatar,
+      // Google 메타데이터에는 자기소개가 없다 — 기본값은 항상 "없음".
+      introduction: null,
     },
   }
 }
@@ -163,6 +176,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // 콜백이 최신 목록을 stale closure 없이 읽기 위한 거울.
   const pagesRef = useRef<Page[]>([])
   pagesRef.current = pages
+
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>('loading')
+  // retryProfile이 올릴 때마다 조회 effect가 다시 돈다.
+  const [profileFetchCount, setProfileFetchCount] = useState(0)
 
   useEffect(() => {
     const initial = parseStoredTheme(document.documentElement.dataset.theme ?? null)
@@ -214,22 +231,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const uid = authUser?.uid ?? null
 
   // 계정이 바뀌면 그 계정의 프로필 행을 DB에서 불러온다. 행이 없으면 Google 기본값을 쓴다.
+  // 조회가 끝나기 전까지는 loading, 실패하면 error — 실패 상태에서는 저장이 막힌다(updateUser 가드).
   useEffect(() => {
     setProfile(null)
+    setProfileStatus('loading')
     if (!uid) return
     let cancelled = false
     supabase
       .from('profile')
-      .select('name, image')
+      .select('name, image, introduction')
       .eq('user_id', uid)
       .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data) setProfile({ name: data.name, image: data.image })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          setProfileStatus('error')
+          return
+        }
+        if (data)
+          setProfile({
+            name: data.name,
+            image: data.image,
+            introduction: data.introduction,
+          })
+        setProfileStatus('ready')
       })
     return () => {
       cancelled = true
     }
-  }, [uid])
+  }, [uid, profileFetchCount])
+
+  const retryProfile = useCallback(() => {
+    setProfileFetchCount((n) => n + 1)
+  }, [])
 
   // 계정의 페이지를 서버에서 불러온다. 계정이 바뀌거나 로그아웃하면 이전 목록을 즉시 버린다.
   // 소유자 필터는 명확성과 전송량을 위한 것이지 보안 경계가 아니다 — RLS가 애초에 남의 행을 주지 않는다.
@@ -297,6 +331,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateUser = useCallback(
     async (patch: Partial<User>): Promise<{ error: string | null }> => {
       if (!uid || !authUser) return { error: '로그인이 필요합니다.' }
+      // 조회가 끝나지 않았거나 실패한 상태의 저장은 profile ?? base 폴백으로
+      // DB 행 전체를 기본값으로 덮어쓰는 경로다 — 게이트웨이에서 차단한다(FR-020).
+      if (profileStatus !== 'ready')
+        return { error: '프로필을 불러오지 못해 저장할 수 없습니다. 다시 시도해 주세요.' }
       const { base } = authUser
       const next: Profile = {
         name:
@@ -309,6 +347,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : profile
               ? profile.image
               : base.image,
+        introduction:
+          'introduction' in patch
+            ? (patch.introduction ?? null)
+            : (profile?.introduction ?? null),
       }
       const { error } = await supabase
         .from('profile')
@@ -317,7 +359,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setProfile(next)
       return { error: null }
     },
-    [uid, authUser, profile],
+    [uid, authUser, profile, profileStatus],
   )
 
   // 대기 중인 변경을 서버로 보낸다. 저장 중 쌓인 변경은 같은 루프에서 이어서 보내
@@ -455,13 +497,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resetAll = useCallback(async () => {
+    // 프로필 행도 Google 계정 초기값으로 되돌린다. 자기소개는 초기값이 없으므로 함께 지운다.
     if (uid && authUser) {
       // 로컬만 비우면 재로그인 시 되살아난다. 서버에서도 지운다.
       await supabase.from('page').delete().eq('user_id', uid)
       await supabase
         .from('profile')
         .upsert(
-          { user_id: uid, name: authUser.base.nickname, image: authUser.base.image },
+          {
+            user_id: uid,
+            name: authUser.base.nickname,
+            image: authUser.base.image,
+            introduction: null,
+          },
           { onConflict: 'user_id' },
         )
     }
@@ -480,6 +528,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       nickname: profile?.name ?? base.nickname,
       email: base.email,
       image: profile ? profile.image : base.image,
+      introduction: profile?.introduction ?? null,
     }
   }, [authUser, profile])
 
@@ -494,6 +543,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dismissNotice,
       theme,
       toggleTheme,
+      profileStatus,
+      retryProfile,
       login,
       logout,
       updateUser,
@@ -516,6 +567,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dismissNotice,
       theme,
       toggleTheme,
+      profileStatus,
+      retryProfile,
       login,
       logout,
       updateUser,

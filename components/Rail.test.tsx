@@ -21,7 +21,12 @@ vi.mock('@/lib/supabase', () => ({
 import Rail, { NAV_LABELS, type NavKey } from './Rail'
 import { StoreProvider, type User } from '@/lib/store'
 
-const testUser: User = { nickname: '테스터', email: 'tester@example.com', image: null }
+const testUser: User = {
+  nickname: '테스터',
+  email: 'tester@example.com',
+  image: null,
+  introduction: null,
+}
 
 type RailProps = Parameters<typeof Rail>[0]
 
