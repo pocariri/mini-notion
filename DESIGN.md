@@ -480,7 +480,7 @@ body {
 
 - **목적/역할**: 마이 페이지(프로필/계정 탭). 대응 와이어프레임: 1i.
 - **해부**: 좌측 `.rail`(설정 내비: 프로필/계정 + "업무로 돌아가기") + 우측 `.settings-body`.
-  - 프로필 탭: `.settings-title` + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`).
+  - 프로필 탭: `.settings-title` + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`/`.save-error`).
   - 계정 탭: `.account-row` × 2(이메일 / 연결된 계정 `.badge`) + `.danger-zone`(로그아웃 btn + 초기화 btn-danger).
 
 | 요소 | 값 |
@@ -496,14 +496,15 @@ body {
 | `.counter` | `flex:none`, `font-family:--font-mono`, `--text-2xs`, `--text-tertiary` |
 | `.save-row` | `gap:12px` |
 | `.saved-note` | `--text-xs`, `color:--green-500`(#35b37e) |
+| `.save-error` | `--text-xs`, `color:--red-500`(#e5484d) |
 | `.account-row` | `justify-content:space-between`, `gap:10px`, `width:420px`, `max-width:100%`, `padding:13px 2px`, `border-bottom:1px solid --border-subtle`, `--text-sm` |
 | `.account-row .label` | `color:--text-tertiary` |
 | `.account-row .value` | `font-weight:--fw-medium` |
 | `.badge` | `padding:2px 8px`, `border-radius:--radius-sm`, `background:--accent-soft`, `color:--text-accent`, `--text-micro`, `--fw-semibold`, `--ls-wide` |
 | `.danger-zone` | `gap:8px`, `margin-top:30px` |
 
-- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid}`(`app/me/page.tsx:174`).
-- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장 성공 시 "저장되었습니다." 2초 노출. 초기화는 `window.confirm` 후 `resetAll()` → `/login`.
+- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid || saving}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출.
+- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm` 후 `resetAll()`(프로필 행을 Google 기본값으로 되돌리고 signOut) → `/login`.
 
 ### 5.13 Responsive (light) — `app/globals.css:1025-1038`
 
@@ -568,7 +569,7 @@ body {
 - **구조**: `.workspace` 프레임 재사용 — 좌측 `.rail`(설정 내비: 프로필/계정 탭 + "업무로 돌아가기" 링크) + 우측 `.settings-body`.
 - **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
 - **계정 탭**: 이메일 행, 연결된 계정 뱃지(GOOGLE), danger-zone(로그아웃 / 모든 데이터 초기화).
-- **동작**: 폼 초기값은 최초 1회만 사용자 정보에서 hydrate(`me/page.tsx:31-37`). `dirty`(변경됨) & `valid`(별명 비어있지 않음)일 때만 저장 가능.
+- **동작**: 폼 초기값은 최초 1회만 사용자 정보에서 hydrate(`me/page.tsx:31-37`). `dirty`(변경됨) & `valid`(별명 비어있지 않음) & 저장 중이 아닐 때만 저장 가능. 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
 
 ### 6.5 스플래시 (Splash) — `app/page.tsx`
 
@@ -612,7 +613,7 @@ body {
 |---|---|---|
 | `nickname` | `string` | 최대 20자(`MAX_NICKNAME`, `me/page.tsx:12`), `#n/20` 카운터, "{nickname}님" 표기 |
 | `email` | `string` | 계정 탭 이메일 행 표시 |
-| `image` | `string \| null` | 프로필 이미지(dataURL). null이면 아바타에 닉네임 첫 글자 |
+| `image` | `string \| null` | 프로필 이미지(Google 사진 URL 또는 업로드 dataURL). null이면 아바타에 닉네임 첫 글자 |
 
 **`Post` 타입 필드 전량** (`store.tsx:20-28`):
 
@@ -631,8 +632,8 @@ body {
 - 프로필 이미지 5MB 이하(`MAX_IMAGE_BYTES = 5 * 1024 * 1024`) + `image/*`만. 초과 시 "5MB 이하 이미지만 업로드할 수 있어요." 알림(`me/page.tsx:50-63`).
 - 최근 항목 상위 10개(`slice(0, 10)`, `workspace/page.tsx:26`).
 - **시드 샘플 4개**(`seedPosts`, `store.tsx:60-99`): "주간 업무 정리"(2일 전, favorite), "신제품 아이디어"(3일 전), "회의 메모"(5일 전), "읽을 자료 모음"(8일 전). 첫 로그인 & 저장된 글 없을 때만 시드(`store.tsx:125-131`).
-- 목 로그인 계정(`store.tsx:126`): `nickname: '유아이볼'`, `email: 'uibowl@gmail.com'`, `image: null`.
-- localStorage 키: `mini-notion:user`, `mini-notion:posts`(`store.tsx:46-47`).
+- **사용자 파생**: Supabase 세션(Google 이름·이메일·사진)이 기본값, 그 위에 `public.profile` 행(`name`/`image`, auth.users와 1:1)을 병합(`store.tsx`의 `user` memo). 프로필 행은 최초 로그인 시 DB 트리거(`on_auth_user_created` → `handle_new_user()`)가 Display name·아바타로 생성하고, `/me` 저장 시 upsert로 덮어쓴다.
+- localStorage 키: `mini-notion:posts`(글 전용). 레거시 키 `mini-notion:user`, `mini-notion:user-overlay:<uid>`는 초기화 시 제거.
 
 **`formatDate`** (`lib/format.ts`): `< 60s` → "방금", `< 1h` → "n분 전", `< 24h` → "n시간 전", 그 이상 → "M월 D일". 목록·메타·브레드크럼의 모든 상대 시간 표기가 이 함수 하나에서 나온다.
 

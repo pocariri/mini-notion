@@ -28,6 +28,25 @@ const authMock = vi.hoisted(() => {
   }
 })
 
+// public.profile 테이블(1:1 프로필)의 in-memory 대역.
+// upsert가 uid별 행을 덮어쓰고, select().eq().maybeSingle()이 그 행을 돌려준다.
+const dbMock = vi.hoisted(() => {
+  const state = {
+    profiles: {} as Record<string, { name: string | null; image: string | null }>,
+    upsertError: null as { message: string } | null,
+  }
+  return {
+    state,
+    upsert: vi.fn(
+      async (row: { user_id: string; name: string | null; image: string | null }) => {
+        if (state.upsertError) return { error: state.upsertError }
+        state.profiles[row.user_id] = { name: row.name, image: row.image }
+        return { error: null }
+      },
+    ),
+  }
+})
+
 vi.mock('./supabase', () => ({
   supabase: {
     auth: {
@@ -48,6 +67,17 @@ vi.mock('./supabase', () => ({
       signInWithOAuth: authMock.signInWithOAuth,
       signOut: authMock.signOut,
     },
+    from: () => ({
+      select: () => ({
+        eq: (_col: string, uid: string) => ({
+          maybeSingle: async () => ({
+            data: dbMock.state.profiles[uid] ?? null,
+            error: null,
+          }),
+        }),
+      }),
+      upsert: dbMock.upsert,
+    }),
   },
 }))
 
@@ -79,6 +109,9 @@ beforeEach(() => {
   authMock.state.callbacks.length = 0
   authMock.signInWithOAuth.mockClear()
   authMock.signOut.mockClear()
+  dbMock.state.profiles = {}
+  dbMock.state.upsertError = null
+  dbMock.upsert.mockClear()
 })
 
 describe('인증 (Supabase Google OAuth)', () => {
@@ -148,49 +181,81 @@ describe('인증 (Supabase Google OAuth)', () => {
 
     expect(localStorage.getItem('mini-notion:user')).toBeNull()
   })
+
+  test('초기화 시 레거시 오버레이 키(mini-notion:user-overlay:*)를 제거한다', async () => {
+    localStorage.setItem('mini-notion:user-overlay:uid-123', '{"nickname":"옛별명"}')
+
+    await renderStore()
+
+    expect(localStorage.getItem('mini-notion:user-overlay:uid-123')).toBeNull()
+  })
 })
 
-describe('프로필 오버레이', () => {
-  test('updateUser는 별명 수정을 uid별 오버레이에 저장하고 user에 병합한다', async () => {
+describe('프로필 (Supabase public.profile 연동)', () => {
+  test('updateUser는 별명을 profile 행에 upsert하고 user에 반영한다', async () => {
     const { result } = await renderStore()
     act(() => {
       authMock.fire('SIGNED_IN', googleSession)
     })
 
-    act(() => {
-      result.current.updateUser({ nickname: '나만의별명' })
+    await act(async () => {
+      const { error } = await result.current.updateUser({ nickname: '나만의별명' })
+      expect(error).toBeNull()
     })
 
     expect(result.current.user?.nickname).toBe('나만의별명')
     expect(result.current.user?.email).toBe('real@gmail.com')
-    const raw = localStorage.getItem('mini-notion:user-overlay:uid-123')
-    expect(raw).not.toBeNull()
-    expect(JSON.parse(raw!)).toMatchObject({ nickname: '나만의별명' })
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'uid-123',
+        name: '나만의별명',
+        image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+      },
+      { onConflict: 'user_id' },
+    )
   })
 
-  test('이미지를 null로 수정하면 Google 사진 대신 빈 아바타가 된다', async () => {
+  test('이미지를 null로 수정하면 DB에 null이 저장되고 빈 아바타가 된다', async () => {
     const { result } = await renderStore()
     act(() => {
       authMock.fire('SIGNED_IN', googleSession)
     })
 
-    act(() => {
-      result.current.updateUser({ image: null })
+    await act(async () => {
+      await result.current.updateUser({ image: null })
     })
 
     expect(result.current.user?.image).toBeNull()
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      { user_id: 'uid-123', name: '김구글', image: null },
+      { onConflict: 'user_id' },
+    )
   })
 
-  test('저장된 오버레이는 다시 로그인해도 유지된다', async () => {
-    localStorage.setItem(
-      'mini-notion:user-overlay:uid-123',
-      JSON.stringify({ nickname: '저장된별명' }),
-    )
+  test('DB에 저장된 프로필은 다시 로그인해도 복원된다', async () => {
+    dbMock.state.profiles['uid-123'] = { name: '저장된별명', image: null }
     authMock.state.session = googleSession
 
     const { result } = await renderStore()
 
     await waitFor(() => expect(result.current.user?.nickname).toBe('저장된별명'))
+    expect(result.current.user?.image).toBeNull()
+  })
+
+  test('upsert가 실패하면 에러 메시지를 돌려주고 user는 그대로다', async () => {
+    dbMock.state.upsertError = { message: 'boom' }
+    const { result } = await renderStore()
+    act(() => {
+      authMock.fire('SIGNED_IN', googleSession)
+    })
+
+    let error: string | null = null
+    await act(async () => {
+      ;({ error } = await result.current.updateUser({ nickname: '실패별명' }))
+    })
+
+    expect(error).toBe('boom')
+    expect(result.current.user?.nickname).toBe('김구글')
   })
 })
 
@@ -219,14 +284,14 @@ describe('첫 로그인 시드', () => {
 })
 
 describe('resetAll', () => {
-  test('글과 오버레이를 지우고 signOut한다', async () => {
+  test('글을 지우고 프로필을 Google 기본값으로 되돌린 뒤 signOut한다', async () => {
     authMock.state.session = googleSession
     const { result } = await renderStore()
     act(() => {
       result.current.createPost('지울 글')
     })
-    act(() => {
-      result.current.updateUser({ nickname: '지울별명' })
+    await act(async () => {
+      await result.current.updateUser({ nickname: '지울별명' })
     })
 
     await act(async () => {
@@ -235,7 +300,10 @@ describe('resetAll', () => {
 
     expect(result.current.posts).toHaveLength(0)
     expect(result.current.user).toBeNull()
-    expect(localStorage.getItem('mini-notion:user-overlay:uid-123')).toBeNull()
+    expect(dbMock.state.profiles['uid-123']).toEqual({
+      name: '김구글',
+      image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+    })
     expect(authMock.signOut).toHaveBeenCalled()
   })
 })

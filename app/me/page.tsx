@@ -20,6 +20,8 @@ export default function MePage() {
   const [nickname, setNickname] = useState('')
   const [image, setImage] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -62,10 +64,18 @@ export default function MePage() {
     reader.readAsDataURL(file)
   }
 
-  const handleSave = () => {
-    if (!dirty || !valid) return
-    updateUser({ nickname: nickname.trim(), image })
-    setNickname(nickname.trim())
+  const handleSave = async () => {
+    if (!dirty || !valid || saving) return
+    setSaving(true)
+    setSaveError(null)
+    const trimmed = nickname.trim()
+    const { error } = await updateUser({ nickname: trimmed, image })
+    setSaving(false)
+    if (error) {
+      setSaveError('저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
+      return
+    }
+    setNickname(trimmed)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -170,11 +180,16 @@ export default function MePage() {
               <button
                 className="btn btn-accent"
                 onClick={handleSave}
-                disabled={!dirty || !valid}
+                disabled={!dirty || !valid || saving}
               >
-                변경 사항 저장
+                {saving ? '저장 중…' : '변경 사항 저장'}
               </button>
               {saved && <span className="saved-note">저장되었습니다.</span>}
+              {saveError && (
+                <span className="save-error" role="alert">
+                  {saveError}
+                </span>
+              )}
             </div>
           </>
         ) : (

@@ -35,7 +35,7 @@ type Store = {
   posts: Post[]
   login: () => Promise<{ error: string | null }>
   logout: () => Promise<void>
-  updateUser: (patch: Partial<User>) => void
+  updateUser: (patch: Partial<User>) => Promise<{ error: string | null }>
   createPost: (title?: string, content?: string) => string
   updatePost: (id: string, patch: Partial<Pick<Post, 'title' | 'content'>>) => void
   toggleFavorite: (id: string) => void
@@ -48,12 +48,13 @@ type Store = {
 const POSTS_KEY = 'mini-notion:posts'
 // 가짜 로그인 시절의 사용자 키 — 실제 세션과 섞이지 않도록 초기화 시 제거한다.
 const LEGACY_USER_KEY = 'mini-notion:user'
+// 프로필이 Supabase(public.profile)로 이전되기 전의 로컬 오버레이 키 — 초기화 시 제거한다.
+const LEGACY_OVERLAY_PREFIX = 'mini-notion:user-overlay:'
 
-const overlayKey = (uid: string) => `mini-notion:user-overlay:${uid}`
-
-// Google 계정 초기값 위에 /me에서 수정한 값을 덮어쓰는 로컬 오버레이.
-// image는 "명시적으로 제거(null)"와 "수정한 적 없음(키 없음)"을 구분한다.
-type Overlay = { nickname?: string; image?: string | null }
+// Supabase public.profile 행(auth.users와 1:1). 최초 로그인 시 DB 트리거가
+// Google 이름·사진을 초기값으로 만들어 주고, /me에서 수정하면 이 행을 덮어쓴다.
+// image는 "명시적으로 제거"를 null로 저장한다(행이 있으면 DB 값이 진실).
+type Profile = { name: string | null; image: string | null }
 
 type AuthUser = { uid: string; base: User }
 
@@ -134,12 +135,16 @@ function seedPosts(now: number): Post[] {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
-  const [overlay, setOverlay] = useState<Overlay>({})
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const hadStoredPosts = useRef(false)
 
   useEffect(() => {
     localStorage.removeItem(LEGACY_USER_KEY)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(LEGACY_OVERLAY_PREFIX)) localStorage.removeItem(key)
+    }
     hadStoredPosts.current = localStorage.getItem(POSTS_KEY) !== null
     setPosts(loadJSON<Post[]>(POSTS_KEY) ?? [])
 
@@ -162,9 +167,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const uid = authUser?.uid ?? null
 
-  // 계정이 바뀌면 그 계정의 로컬 수정분(오버레이)을 불러온다.
+  // 계정이 바뀌면 그 계정의 프로필 행을 DB에서 불러온다. 행이 없으면 Google 기본값을 쓴다.
   useEffect(() => {
-    setOverlay(uid ? (loadJSON<Overlay>(overlayKey(uid)) ?? {}) : {})
+    setProfile(null)
+    if (!uid) return
+    let cancelled = false
+    supabase
+      .from('profile')
+      .select('name, image')
+      .eq('user_id', uid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setProfile({ name: data.name, image: data.image })
+      })
+    return () => {
+      cancelled = true
+    }
   }, [uid])
 
   // 이 브라우저에서 글을 저장한 적 없는 첫 로그인이면 시드 글을 만든다.
@@ -192,15 +210,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateUser = useCallback(
-    (patch: Partial<User>) => {
-      if (!uid) return
-      const next: Overlay = { ...overlay }
-      if (patch.nickname !== undefined) next.nickname = patch.nickname
-      if ('image' in patch) next.image = patch.image ?? null
-      setOverlay(next)
-      localStorage.setItem(overlayKey(uid), JSON.stringify(next))
+    async (patch: Partial<User>): Promise<{ error: string | null }> => {
+      if (!uid || !authUser) return { error: '로그인이 필요합니다.' }
+      const { base } = authUser
+      const next: Profile = {
+        name:
+          patch.nickname !== undefined
+            ? patch.nickname
+            : (profile?.name ?? base.nickname),
+        image:
+          'image' in patch
+            ? (patch.image ?? null)
+            : profile
+              ? profile.image
+              : base.image,
+      }
+      const { error } = await supabase
+        .from('profile')
+        .upsert({ user_id: uid, ...next }, { onConflict: 'user_id' })
+      if (error) return { error: error.message }
+      setProfile(next)
+      return { error: null }
     },
-    [uid, overlay],
+    [uid, authUser, profile],
   )
 
   const createPost = useCallback((title = '', content = '') => {
@@ -245,22 +277,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const resetAll = useCallback(async () => {
     setPosts([])
-    setOverlay({})
     localStorage.removeItem(POSTS_KEY)
-    if (uid) localStorage.removeItem(overlayKey(uid))
     hadStoredPosts.current = false
+    // 프로필 행도 Google 계정 초기값으로 되돌린다.
+    if (uid && authUser) {
+      await supabase
+        .from('profile')
+        .upsert(
+          { user_id: uid, name: authUser.base.nickname, image: authUser.base.image },
+          { onConflict: 'user_id' },
+        )
+    }
+    setProfile(null)
     await supabase.auth.signOut()
-  }, [uid])
+  }, [uid, authUser])
 
   const user = useMemo<User | null>(() => {
     if (!authUser) return null
     const { base } = authUser
     return {
-      nickname: overlay.nickname ?? base.nickname,
+      nickname: profile?.name ?? base.nickname,
       email: base.email,
-      image: 'image' in overlay ? (overlay.image ?? null) : base.image,
+      image: profile ? profile.image : base.image,
     }
-  }, [authUser, overlay])
+  }, [authUser, profile])
 
   const value = useMemo<Store>(
     () => ({
