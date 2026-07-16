@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { FileText, Search, Settings } from 'lucide-react'
 import Avatar from '@/components/Avatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import type { User } from '@/lib/store'
 
 // 저장 구조에 즐겨찾기·삭제 표시·수정 시각을 담을 자리가 없어 관련 내비가 모두 사라졌다.
@@ -62,6 +63,8 @@ export default function Rail({ user, nav, counts, search, onNav, onSearch }: Pro
       })}
 
       <div className="rail-spacer" />
+
+      <ThemeToggle />
 
       <Link href="/me" className="rail-footer" title="마이 페이지">
         <Avatar user={user} size={30} />

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ImagePlus, LogOut, UserRound, X } from 'lucide-react'
 import Avatar from '@/components/Avatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import { useStore } from '@/lib/store'
 
 type Tab = 'profile' | 'account'
@@ -113,6 +114,8 @@ export default function MePage() {
         </button>
 
         <div className="rail-spacer" />
+
+        <ThemeToggle />
 
         <Link href="/workspace" className="navitem">
           <ArrowLeft size={15} />

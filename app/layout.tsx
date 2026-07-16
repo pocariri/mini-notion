@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import { StoreProvider } from '@/lib/store'
+import { THEME_INIT_SCRIPT } from '@/lib/theme'
 import './globals.css'
 
 const pretendard = localFont({
@@ -21,7 +22,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" className={pretendard.variable}>
+    // 인라인 스크립트가 하이드레이션 전에 data-theme를 교정하므로 React가
+    // SSR 기본값(light)과의 불일치를 수용해야 한다(suppressHydrationWarning).
+    // Next.js 공식 패턴: docs/01-app/02-guides/preventing-flash-before-hydration.md
+    <html
+      lang="ko"
+      data-theme="light"
+      suppressHydrationWarning
+      className={pretendard.variable}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <StoreProvider>{children}</StoreProvider>
       </body>

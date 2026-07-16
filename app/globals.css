@@ -17,7 +17,9 @@
   --gray-500: #90908a;
   --gray-600: #6e6e68;
   --gray-700: #52524d;
+  --gray-750: #43433e;
   --gray-800: #363632;
+  --gray-850: #2c2c28;
   --gray-900: #23231f;
   --black: #1a1a17;
 
@@ -49,6 +51,7 @@
   --surface-hover: var(--gray-100);
   --surface-active: var(--gray-150);
   --surface-inverse: var(--black);
+  --surface-disabled: var(--gray-200);
 
   /* Text */
   --text-primary: #2f2f2b;
@@ -56,6 +59,7 @@
   --text-tertiary: var(--gray-500);
   --text-disabled: var(--gray-400);
   --text-on-accent: var(--white);
+  --text-on-inverse: var(--white);
   --text-accent: var(--violet-600);
 
   /* Borders */
@@ -69,6 +73,10 @@
   --accent-soft: var(--violet-50);
   --accent-soft-border: var(--violet-200);
   --focus-ring: color-mix(in srgb, var(--violet-500) 40%, transparent);
+  --selection-bg: var(--violet-100);
+  --avatar-bg: var(--violet-100);
+  --avatar-text: var(--violet-700);
+  --danger-soft: var(--red-50);
 
   /* Typography */
   --font-sans: var(--font-pretendard), "Pretendard Variable", -apple-system,
@@ -115,6 +123,62 @@
   --dur-base: 180ms;
   --dur-slow: 260ms;
   --dur-shimmer: 1400ms;
+
+  color-scheme: light;
+}
+
+/* ---------- Dark theme ----------
+   시맨틱 토큰만 재정의한다 — 원시 팔레트(gray/violet/hue 스케일)는 불변.
+   레이아웃 인라인 스크립트가 첫 페인트 전에 <html data-theme>를 설정한다. */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --surface-page: var(--black);
+  --surface-sidebar: var(--gray-900);
+  --surface-card: var(--gray-900);
+  --surface-sunken: var(--black);
+  --surface-hover: var(--gray-850);
+  --surface-active: var(--gray-800);
+  --surface-inverse: var(--gray-100);
+  --surface-disabled: var(--gray-800);
+
+  /* Text — 본문 4.5:1↑, 큰 텍스트·UI 3:1↑ (수치는 DESIGN.md §3 다크 표 참조) */
+  --text-primary: var(--gray-100);
+  --text-secondary: var(--gray-400);
+  --text-tertiary: var(--gray-500);
+  --text-disabled: var(--gray-600);
+  --text-on-accent: var(--white);
+  --text-on-inverse: var(--black);
+  --text-accent: var(--violet-300);
+
+  /* Borders */
+  --border-subtle: var(--gray-800);
+  --border-default: var(--gray-750);
+  --border-strong: var(--gray-700);
+
+  /* Accent roles */
+  --accent-hover: var(--violet-400);
+  --accent-soft: color-mix(in srgb, var(--violet-500) 16%, var(--gray-900));
+  --accent-soft-border: color-mix(in srgb, var(--violet-500) 38%, var(--gray-900));
+  --selection-bg: var(--violet-700);
+  --avatar-bg: color-mix(in srgb, var(--violet-500) 25%, var(--gray-900));
+  --avatar-text: var(--violet-200);
+  --danger-soft: color-mix(in srgb, var(--red-500) 14%, var(--gray-900));
+
+  /* Elevation — 어두운 표면 위에서는 잉크를 더 진하게 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* 테마 전환 순간에만 전 요소의 트랜지션을 억제한다(FR-003a).
+   lib/store.tsx의 toggleTheme이 이 클래스를 얹고 리플로우 후 즉시 제거한다. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
 }
 
 * {
@@ -154,7 +218,7 @@ textarea {
 }
 
 ::selection {
-  background: var(--violet-100);
+  background: var(--selection-bg);
 }
 
 /* ---------- Buttons ---------- */
@@ -210,7 +274,7 @@ textarea {
 }
 
 .btn-danger:hover {
-  background: var(--red-50);
+  background: var(--danger-soft);
 }
 
 .btn-ghost {
@@ -259,8 +323,8 @@ button.chip:hover {
   justify-content: center;
   flex: none;
   border-radius: 50%;
-  background: var(--violet-100);
-  color: var(--violet-700);
+  background: var(--avatar-bg);
+  color: var(--avatar-text);
   font-weight: var(--fw-semibold);
   overflow: hidden;
 }
@@ -298,7 +362,7 @@ button.chip:hover {
   height: 26px;
   border-radius: var(--radius-md);
   background: var(--surface-inverse);
-  color: #fff;
+  color: var(--text-on-inverse);
   font-size: 13px;
   font-weight: var(--fw-bold);
   flex: none;
@@ -490,7 +554,7 @@ button.chip:hover {
   border: none;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   transition: background var(--dur-fast) var(--ease-standard);
 }
 
@@ -499,8 +563,8 @@ button.chip:hover {
 }
 
 .send:disabled {
-  background: var(--gray-200);
-  color: var(--gray-400);
+  background: var(--surface-disabled);
+  color: var(--text-disabled);
   cursor: default;
 }
 
@@ -797,17 +861,17 @@ button.chip:hover {
 .cover-skeleton {
   position: absolute;
   inset: 0;
-  background: var(--gray-100);
+  background: var(--surface-hover);
   animation: cover-pulse var(--dur-shimmer) ease-in-out infinite;
 }
 
 @keyframes cover-pulse {
   0%,
   100% {
-    background: var(--gray-100);
+    background: var(--surface-hover);
   }
   50% {
-    background: var(--gray-150);
+    background: var(--surface-active);
   }
 }
 
@@ -825,7 +889,7 @@ button.chip:hover {
   height: 100%;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background: var(--gray-100);
+  background: var(--surface-hover);
   color: var(--text-disabled);
 }
 
@@ -970,7 +1034,7 @@ button.chip:hover {
   margin: 0 auto 14px;
   border-radius: var(--radius-lg);
   background: var(--surface-inverse);
-  color: #fff;
+  color: var(--text-on-inverse);
   font-size: 20px;
   font-weight: var(--fw-bold);
 }

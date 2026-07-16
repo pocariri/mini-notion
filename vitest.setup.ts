@@ -48,8 +48,69 @@ if (typeof window !== 'undefined') {
   })
 }
 
-// 각 테스트 후 렌더 트리와 저장소를 초기화해 테스트 간 격리를 보장한다.
+// 이 jsdom 빌드는 matchMedia도 구현하지 않는다(window.matchMedia === undefined).
+// 테마 기능은 '(prefers-color-scheme: dark)'를 실제 경계로 사용하므로,
+// Storage와 같은 접근으로 동작하는 in-memory MediaQueryList를 제공한다.
+// 테스트는 setSystemDark()로 OS 다크 모드 상태를 제어하고 change 이벤트를 받는다.
+const DARK_QUERY = '(prefers-color-scheme: dark)'
+type MediaChangeListener = (ev: MediaQueryListEvent) => void
+
+let systemDark = false
+const darkListeners = new Set<MediaChangeListener>()
+
+function memoryMatchMedia(query: string): MediaQueryList {
+  const isDarkQuery = query === DARK_QUERY
+  const mql = {
+    get matches() {
+      return isDarkQuery && systemDark
+    },
+    media: query,
+    onchange: null,
+    addEventListener(type: string, listener: MediaChangeListener) {
+      if (type === 'change' && isDarkQuery) darkListeners.add(listener)
+    },
+    removeEventListener(type: string, listener: MediaChangeListener) {
+      if (type === 'change' && isDarkQuery) darkListeners.delete(listener)
+    },
+    // 레거시 API — 오래된 코드 경로도 실제처럼 동작하게 한다.
+    addListener(listener: MediaChangeListener) {
+      if (isDarkQuery) darkListeners.add(listener)
+    },
+    removeListener(listener: MediaChangeListener) {
+      if (isDarkQuery) darkListeners.delete(listener)
+    },
+    dispatchEvent() {
+      return true
+    },
+  }
+  return mql as unknown as MediaQueryList
+}
+
+export function setSystemDark(value: boolean): void {
+  if (systemDark === value) return
+  systemDark = value
+  const event = { matches: value, media: DARK_QUERY } as MediaQueryListEvent
+  darkListeners.forEach((listener) => listener(event))
+}
+
+Object.defineProperty(globalThis, 'matchMedia', {
+  value: memoryMatchMedia,
+  writable: true,
+  configurable: true,
+})
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    value: memoryMatchMedia,
+    writable: true,
+    configurable: true,
+  })
+}
+
+// 각 테스트 후 렌더 트리·저장소·OS 테마 상태를 초기화해 테스트 간 격리를 보장한다.
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  systemDark = false
+  darkListeners.clear()
+  document.documentElement.removeAttribute('data-theme')
 })
