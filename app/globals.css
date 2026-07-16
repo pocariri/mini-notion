@@ -1044,6 +1044,32 @@ button.chip:hover {
   font-weight: var(--fw-semibold);
 }
 
+/* 여러 줄 변형 — 보더·radius·표면·:focus-within 계약은 .field에서 상속한다. */
+.field-multi {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.field-multi .counter {
+  align-self: flex-end;
+}
+
+/* textarea 리셋 — .field input과 분리해 별명용 semibold가 본문에 번지지 않게 한다. */
+.field textarea {
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  padding: 0;
+  width: 100%;
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+}
+
+.field textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
 .counter {
   flex: none;
   font-family: var(--font-mono);

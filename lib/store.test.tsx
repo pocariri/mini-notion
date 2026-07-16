@@ -30,17 +30,32 @@ const authMock = vi.hoisted(() => {
 
 // public.profile 테이블(1:1 프로필)의 in-memory 대역.
 // upsert가 uid별 행을 덮어쓰고, select().eq().maybeSingle()이 그 행을 돌려준다.
+// 실제 행 구조(name·image·introduction)를 그대로 반영한다.
 const dbMock = vi.hoisted(() => {
   const state = {
-    profiles: {} as Record<string, { name: string | null; image: string | null }>,
+    profiles: {} as Record<
+      string,
+      { name: string | null; image: string | null; introduction: string | null }
+    >,
     upsertError: null as { message: string } | null,
+    selectError: null as { message: string } | null,
+    lastSelect: null as string | null,
   }
   return {
     state,
     upsert: vi.fn(
-      async (row: { user_id: string; name: string | null; image: string | null }) => {
+      async (row: {
+        user_id: string
+        name: string | null
+        image: string | null
+        introduction?: string | null
+      }) => {
         if (state.upsertError) return { error: state.upsertError }
-        state.profiles[row.user_id] = { name: row.name, image: row.image }
+        state.profiles[row.user_id] = {
+          name: row.name,
+          image: row.image,
+          introduction: row.introduction ?? null,
+        }
         return { error: null }
       },
     ),
@@ -68,14 +83,18 @@ vi.mock('./supabase', () => ({
       signOut: authMock.signOut,
     },
     from: () => ({
-      select: () => ({
-        eq: (_col: string, uid: string) => ({
-          maybeSingle: async () => ({
-            data: dbMock.state.profiles[uid] ?? null,
-            error: null,
+      select: (columns: string) => {
+        dbMock.state.lastSelect = columns
+        return {
+          eq: (_col: string, uid: string) => ({
+            maybeSingle: async () => {
+              if (dbMock.state.selectError)
+                return { data: null, error: dbMock.state.selectError }
+              return { data: dbMock.state.profiles[uid] ?? null, error: null }
+            },
           }),
-        }),
-      }),
+        }
+      },
       upsert: dbMock.upsert,
     }),
   },
@@ -111,6 +130,8 @@ beforeEach(() => {
   authMock.signOut.mockClear()
   dbMock.state.profiles = {}
   dbMock.state.upsertError = null
+  dbMock.state.selectError = null
+  dbMock.state.lastSelect = null
   dbMock.upsert.mockClear()
 })
 
@@ -139,6 +160,7 @@ describe('인증 (Supabase Google OAuth)', () => {
       nickname: '김구글',
       email: 'real@gmail.com',
       image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+      introduction: null,
     })
   })
 
@@ -197,6 +219,7 @@ describe('프로필 (Supabase public.profile 연동)', () => {
     act(() => {
       authMock.fire('SIGNED_IN', googleSession)
     })
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
 
     await act(async () => {
       const { error } = await result.current.updateUser({ nickname: '나만의별명' })
@@ -210,6 +233,7 @@ describe('프로필 (Supabase public.profile 연동)', () => {
         user_id: 'uid-123',
         name: '나만의별명',
         image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        introduction: null,
       },
       { onConflict: 'user_id' },
     )
@@ -220,6 +244,7 @@ describe('프로필 (Supabase public.profile 연동)', () => {
     act(() => {
       authMock.fire('SIGNED_IN', googleSession)
     })
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
 
     await act(async () => {
       await result.current.updateUser({ image: null })
@@ -227,13 +252,13 @@ describe('프로필 (Supabase public.profile 연동)', () => {
 
     expect(result.current.user?.image).toBeNull()
     expect(dbMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '김구글', image: null },
+      { user_id: 'uid-123', name: '김구글', image: null, introduction: null },
       { onConflict: 'user_id' },
     )
   })
 
   test('DB에 저장된 프로필은 다시 로그인해도 복원된다', async () => {
-    dbMock.state.profiles['uid-123'] = { name: '저장된별명', image: null }
+    dbMock.state.profiles['uid-123'] = { name: '저장된별명', image: null, introduction: null }
     authMock.state.session = googleSession
 
     const { result } = await renderStore()
@@ -248,6 +273,7 @@ describe('프로필 (Supabase public.profile 연동)', () => {
     act(() => {
       authMock.fire('SIGNED_IN', googleSession)
     })
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
 
     let error: string | null = null
     await act(async () => {
@@ -256,6 +282,178 @@ describe('프로필 (Supabase public.profile 연동)', () => {
 
     expect(error).toBe('boom')
     expect(result.current.user?.nickname).toBe('김구글')
+  })
+})
+
+describe('자기소개 (public.profile.introduction 연동)', () => {
+  test('조회는 introduction 컬럼을 포함하고 저장된 자기소개를 user에 파생한다 (FR-008)', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '저장된별명',
+      image: null,
+      introduction: '안녕하세요.\n저장된 소개입니다.',
+    }
+    authMock.state.session = googleSession
+
+    const { result } = await renderStore()
+
+    await waitFor(() =>
+      expect(result.current.user?.introduction).toBe('안녕하세요.\n저장된 소개입니다.'),
+    )
+    expect(dbMock.state.lastSelect).toBe('name, image, introduction')
+  })
+
+  test('프로필 행이 없으면 introduction은 null이고 오류가 아니다', async () => {
+    authMock.state.session = googleSession
+
+    const { result } = await renderStore()
+
+    await waitFor(() => expect(result.current.user).not.toBeNull())
+    expect(result.current.user?.introduction).toBeNull()
+  })
+
+  test('updateUser는 자기소개를 4필드 전체 행으로 upsert하고 user에 반영한다 (FR-010)', async () => {
+    const { result } = await renderStore()
+    act(() => {
+      authMock.fire('SIGNED_IN', googleSession)
+    })
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+
+    await act(async () => {
+      const { error } = await result.current.updateUser({ introduction: '한 줄 소개' })
+      expect(error).toBeNull()
+    })
+
+    expect(result.current.user?.introduction).toBe('한 줄 소개')
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'uid-123',
+        name: '김구글',
+        image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        introduction: '한 줄 소개',
+      },
+      { onConflict: 'user_id' },
+    )
+  })
+
+  test('updateUser에 introduction: null을 주면 자기소개가 지워진다 (FR-007)', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: '지울 소개',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.user?.introduction).toBe('지울 소개'))
+
+    await act(async () => {
+      await result.current.updateUser({ introduction: null })
+    })
+
+    expect(result.current.user?.introduction).toBeNull()
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      { user_id: 'uid-123', name: '별명', image: null, introduction: null },
+      { onConflict: 'user_id' },
+    )
+  })
+
+  test('introduction 없는 patch(별명만 저장)는 기존 자기소개를 유지한다 (FR-014)', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: '기존 소개',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.user?.introduction).toBe('기존 소개'))
+
+    await act(async () => {
+      await result.current.updateUser({ nickname: '새별명' })
+    })
+
+    expect(result.current.user?.introduction).toBe('기존 소개')
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      { user_id: 'uid-123', name: '새별명', image: null, introduction: '기존 소개' },
+      { onConflict: 'user_id' },
+    )
+  })
+})
+
+describe('프로필 조회 상태 (profileStatus / retryProfile)', () => {
+  test('로그인 전에는 profileStatus가 loading이다', async () => {
+    const { result } = await renderStore()
+
+    expect(result.current.profileStatus).toBe('loading')
+  })
+
+  test('조회가 성공하면 ready가 된다 (행 부재도 성공)', async () => {
+    authMock.state.session = googleSession
+
+    const { result } = await renderStore()
+
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+  })
+
+  test('조회가 실패하면 error가 된다 — 오류를 버리지 않는다 (FR-019)', async () => {
+    dbMock.state.selectError = { message: 'network down' }
+    authMock.state.session = googleSession
+
+    const { result } = await renderStore()
+
+    await waitFor(() => expect(result.current.profileStatus).toBe('error'))
+  })
+
+  test('로그아웃하면 loading으로 리셋된다', async () => {
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+
+    await act(async () => {
+      await result.current.logout()
+    })
+
+    expect(result.current.profileStatus).toBe('loading')
+  })
+
+  test('retryProfile은 재조회해서 성공 시 ready와 DB 값을 반영한다 (FR-021)', async () => {
+    dbMock.state.selectError = { message: 'network down' }
+    dbMock.state.profiles['uid-123'] = {
+      name: '복구별명',
+      image: null,
+      introduction: '복구된 소개',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.profileStatus).toBe('error'))
+
+    dbMock.state.selectError = null
+    act(() => {
+      result.current.retryProfile()
+    })
+
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+    expect(result.current.user?.nickname).toBe('복구별명')
+    expect(result.current.user?.introduction).toBe('복구된 소개')
+  })
+
+  test('조회 실패 상태에서는 updateUser가 upsert 없이 오류를 반환한다 (FR-020)', async () => {
+    dbMock.state.selectError = { message: 'network down' }
+    dbMock.state.profiles['uid-123'] = {
+      name: '보호될별명',
+      image: null,
+      introduction: '보호될 소개',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.profileStatus).toBe('error'))
+
+    let error: string | null = null
+    await act(async () => {
+      ;({ error } = await result.current.updateUser({ introduction: '덮어쓰기 시도' }))
+    })
+
+    expect(error).not.toBeNull()
+    expect(dbMock.upsert).not.toHaveBeenCalled()
+    expect(dbMock.state.profiles['uid-123'].introduction).toBe('보호될 소개')
   })
 })
 
@@ -303,8 +501,35 @@ describe('resetAll', () => {
     expect(dbMock.state.profiles['uid-123']).toEqual({
       name: '김구글',
       image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+      introduction: null,
     })
     expect(authMock.signOut).toHaveBeenCalled()
+  })
+
+  test('resetAll의 초기화 upsert는 자기소개도 null로 지운다 (FR-015)', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: '남아 있으면 안 되는 소개',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+
+    await act(async () => {
+      await result.current.resetAll()
+    })
+
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'uid-123',
+        name: '김구글',
+        image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        introduction: null,
+      },
+      { onConflict: 'user_id' },
+    )
+    expect(dbMock.state.profiles['uid-123'].introduction).toBeNull()
   })
 })
 

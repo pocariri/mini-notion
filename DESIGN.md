@@ -410,7 +410,7 @@ body {
 - **트랜지션**: `border-color`, `background`, `box-shadow` × `--dur-fast` `--ease-standard`.
 - **React 표시 규칙(`app/workspace/page.tsx:136-191`)**: 제목 없으면 "제목 없음" + `untitled`. 스니펫은 `content.split('\n')[0]`. 메타 별은 `favorite && nav!=='trash'`일 때 `Star size={11}` fill. 날짜는 nav별: trash → `삭제 {formatDate(deletedAt)}`, recent → `수정 {formatDate(updatedAt)}`, 그 외 → `formatDate(createdAt)`. 휴지통 nav일 때 각 로우에 복원(`RotateCcw size={12}`)·영구 삭제(`X size={12}`) 액션.
 
-### 5.8 Detail / editor — `app/globals.css:666-785` · `components/Editor.tsx`
+### 5.8 Detail / editor — `app/globals.css:668-858` · `components/Editor.tsx`
 
 - **목적/역할**: 3-pane의 3번째 pane, 글 상세/편집. 대응 와이어프레임: 1f·1g.
 - **해부(구조)**: `.detail` → `.detail-inner` → `.detail-toolbar`(`.breadcrumb`(+`.crumb-title`+`.save-state`) + `.toolbar-actions`(즐겨찾기 칩 + 삭제 btn-danger)) → (휴지통이면 `.trash-banner`) → `.cover`(랜덤 고양이 커버, §5.14) → `.title-input` → `.doc-meta` → `.doc-divider` → `.content-input` → `.content-counter`.
@@ -436,7 +436,7 @@ body {
 - **상태**: 이 섹션의 인풋들은 자체 focus 스타일 없이 `outline:none`(포커스 표시는 커서). 휴지통 상태에서 `.title-input`/`.content-input`은 `readOnly`(`Editor.tsx:99, 115`).
 - **React(`components/Editor.tsx`)**: props에 `post, navLabel, nickname, focusTitle, onPatch, onToggleFavorite, onTrash, onRestore, onDeleteForever`. `inTrash = post.deletedAt !== null`. **커버**: 제목 입력창 바로 위에 `<CatCover key={`cover-${post.id}`} />` 렌더(`Editor.tsx:90`) — key 리마운트로 글 전환 시 새 랜덤 커버, 휴지통 글에서도 표시(§5.14). ※ 형제 `<input key={post.id}>`와의 key 충돌을 피하려고 `cover-` 접두사를 쓴다. **자동 높이 조절**: `useEffect`로 `content` 변할 때 textarea를 `height:auto → scrollHeight`로 grow(`Editor.tsx:36-41`). 브레드크럼: `{navLabel} › {제목|'제목 없음'}` + (비휴지통) `· 저장됨 {formatDate(updatedAt)}`. 툴바(비휴지통): 즐겨찾기 칩(`Star size={14}`, on이면 `fill="currentColor"`) + 삭제 `btn btn-danger`(`Trash2 size={14}`). 휴지통 배너: 문구 + 복원(`RotateCcw size={14}`)·영구 삭제(`X size={14}`). 제목 placeholder "제목 없음", 내용 placeholder "여기에 내용을 입력하세요.". `.doc-meta` = `작성 {createdAt} · 수정 {updatedAt} · {nickname}`. `autoFocus={focusTitle && !inTrash}`. **글자 수 카운터(`.content-counter`)**: `.content-input` 바로 뒤, `lib/format.ts`의 `charCount(text) = text.length`로 계산한 `{charCount(post.content)}자`를 무조건 렌더(제목 변경·휴지통 상태와 무관, `readOnly` 여부와 무관하게 항상 표시). `.detail`이 스크롤 컨테이너이므로 `position: sticky; bottom: 16px`가 편집 영역 하단에 고정되어 스크롤 중에도 항상 보인다.
 
-### 5.9 Empty state — `app/globals.css:787-833` · `app/workspace/page.tsx:212-235`
+### 5.9 Empty state — `app/globals.css:860-906` · `app/workspace/page.tsx:212-235`
 
 - **목적/역할**: 글 미선택 시 상세 pane의 환영 화면. 대응 와이어프레임: 1b(환영).
 - **해부**: `.empty` → `.empty-box` → `.empty-icon`(FileText) + `h2` + `p` + `.empty-chips`(추천 칩 3개).
@@ -452,7 +452,7 @@ body {
 
 - **React**: 아이콘 `FileText size={22}`. 헤드라인 `{nickname}님,<br/>무엇을 기록할까요?`. 본문 "왼쪽 글을 고르거나 '/page'로 새 글을 시작하세요.". 추천 칩 = `SUGGESTIONS = ['주간 업무 정리', '할 일 적기', '회의 메모']`(`app/workspace/page.tsx:12`), 클릭 시 그 텍스트를 제목으로 새 글 생성.
 
-### 5.10 Login — `app/globals.css:835-890` · `app/login/page.tsx`
+### 5.10 Login — `app/globals.css:908-969` · `app/login/page.tsx`
 
 - **목적/역할**: 중앙 카드형 로그인. 대응 와이어프레임: 1d.
 - **해부**: `.login-page`(중앙정렬 컨테이너) → `.login-card`(`.login-logo` + `.login-title` + `.login-tagline` + `.btn btn-lg google-btn` + `.login-note`).
@@ -470,17 +470,17 @@ body {
 
 - **React(`app/login/page.tsx`)**: 로고 "m", 제목 "mini notion", 태그라인 "개인 업무를, 내 방식대로.", 버튼 `GoogleLogo size={18}` + "Google 계정으로 계속하기"(진행 중이면 "Google로 이동 중…", `disabled={busy}`), 노트 "첫 로그인 시 자동으로 계정이 생성됩니다.". 클릭 시 `login()`이 Supabase `signInWithOAuth({ provider: 'google' })`로 실제 Google OAuth 리다이렉트(복귀 랜딩 `/login`, 로그인되면 기존 가드가 `/workspace`로 이동). 시작 실패·취소 시 `.login-error` 문구 표시.
 
-### 5.11 Splash — `app/globals.css:892-899` · `app/page.tsx`
+### 5.11 Splash — `app/globals.css:971-978` · `app/page.tsx`
 
 - **목적/역할**: 로딩/리다이렉트 대기 스플래시. 대응 React: `app/page.tsx`, 워크스페이스/마이페이지의 미준비 상태에서도 재사용(`app/workspace/page.tsx:85-91`, `app/me/page.tsx:39-45`).
 - **해부**: `.splash`(중앙정렬, `min-height:100dvh`, `background:--surface-sunken`) 안에 `.login-logo`("m") 하나.
 - **React(`app/page.tsx`)**: `ready`가 되면 `user ? '/workspace' : '/login'`으로 `router.replace`. 그동안 `<div className="splash"><span className="login-logo">m</span></div>` 표시.
 
-### 5.12 Settings (my page) — `app/globals.css:901-1023` · `app/me/page.tsx`
+### 5.12 Settings (my page) — `app/globals.css:980-1133` · `app/me/page.tsx`
 
 - **목적/역할**: 마이 페이지(프로필/계정 탭). 대응 와이어프레임: 1i.
 - **해부**: 좌측 `.rail`(설정 내비: 프로필/계정 + "업무로 돌아가기") + 우측 `.settings-body`.
-  - 프로필 탭: `.settings-title` + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`/`.save-error`).
+  - 프로필 탭: `.settings-title` + (조회 실패 시 오류 `.save-row`) + `.profile-row`(Avatar 78 + `.profile-row-actions` + `.hint`) + 별명 `.field-block`(`.section-label` + `.field`(input + `.counter`) + `.hint`) + 자기소개 `.field-block`(`.section-label` + `.field.field-multi`(textarea + `.counter`) + `.hint`) + `.hint`(연결된 계정) + `.save-row`(`btn btn-accent` + `.saved-note`/`.save-error`).
   - 계정 탭: `.account-row` × 2(이메일 / 연결된 계정 `.badge`) + `.danger-zone`(로그아웃 btn + 초기화 btn-danger).
 
 | 요소 | 값 |
@@ -492,7 +492,11 @@ body {
 | `.hint` | `margin:6px 0 0`, `--text-xs`, `--text-tertiary` |
 | `.field-block` | `margin-bottom:26px` |
 | `.field` | `justify-content:space-between`, `gap:10px`, `width:340px`, `max-width:100%`, `padding:9px 12px`, `border:1px solid --border-default`, `border-radius:--radius-md`, `background:--surface-card` |
-| `.field input` | `flex:1`, `border:none`, `outline:none`, `background:transparent`, `font-weight:--fw-semibold` |
+| `.field input` | `flex:1`, `min-width:0`, `border:none`, `outline:none`, `background:transparent`, `font-weight:--fw-semibold` |
+| `.field-multi` | `flex-direction:column`, `align-items:stretch` — 여러 줄 변형. 보더·radius·표면·`:focus-within`은 `.field`에서 상속 |
+| `.field-multi .counter` | `align-self:flex-end` — 카운터를 우하단으로 |
+| `.field textarea` | `border:none`, `outline:none`, `resize:none`, `background:transparent`, `padding:0`, `width:100%`, `font-size:--text-base`, `line-height:--lh-relaxed` — `.field input`과 분리(semibold 미상속, 본문은 regular) |
+| `.field textarea::placeholder` | `color:--text-tertiary` |
 | `.counter` | `flex:none`, `font-family:--font-mono`, `--text-2xs`, `--text-tertiary` |
 | `.save-row` | `gap:12px` |
 | `.saved-note` | `--text-xs`, `color:--green-500`(#35b37e) |
@@ -503,10 +507,10 @@ body {
 | `.badge` | `padding:2px 8px`, `border-radius:--radius-sm`, `background:--accent-soft`, `color:--text-accent`, `--text-micro`, `--fw-semibold`, `--ls-wide` |
 | `.danger-zone` | `gap:8px`, `margin-top:30px` |
 
-- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid || saving}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출.
-- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm` 후 `resetAll()`(프로필 행을 Google 기본값으로 되돌리고 signOut) → `/login`.
+- **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`(`.field-multi`도 동일 상속). 저장 버튼은 `disabled={!dirty || !valid || saving || profileStatus !== 'ready'}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출. **프로필 조회 실패(`profileStatus === 'error'`)** 시 프로필 탭 상단에 `.save-error`(role="alert") "프로필을 불러오지 못했어요." + `btn` "재시도"(`retryProfile()`)를 노출하고, 별명 input·자기소개 textarea·이미지 변경/제거 버튼·저장 버튼을 전부 `disabled` 처리한다(보지 못한 값 덮어쓰기 차단, `specs/003-profile-introduction/` FR-019·020).
+- **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_INTRODUCTION = 150`(`me/page.tsx:13`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:14`). 별명 input `maxLength={20}` + `aria-label="별명"`, 카운터 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 자기소개 textarea `maxLength={150}` + `rows={3}` + `aria-label="자기소개"` + placeholder "자신을 간단히 소개해 보세요.", 카운터 `#{introduction.length}/{MAX_INTRODUCTION}`(예: `#12/150`), 힌트 "150자까지 남길 수 있어요.", 저장 시 trim — 빈 결과는 null("자기소개 없음")로 저장. 폼 하이드레이션은 `profileStatus === 'ready'`(프로필 조회 완료)에 게이트되어 1회 실행 — 조회 완료 전에는 스플래시가 유지된다(Google 기본값이 DB 값을 덮어쓰는 경쟁 차단). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`, `name`·`image`·`introduction` 원자적 1회) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm` 후 `resetAll()`(프로필 행을 Google 기본값으로, 자기소개는 null로 되돌리고 signOut) → `/login`.
 
-### 5.13 Responsive (light) — `app/globals.css:1025-1038`
+### 5.13 Responsive (light) — `app/globals.css:1135-1147`
 
 - **목적/역할**: 좁은 화면(≤1024px)에서 3-pane 폭 축소. "(light)"는 가벼운 조정만 한다는 의도.
 - **브레이크포인트**: `@media (max-width: 1024px)`.
@@ -567,9 +571,9 @@ body {
 ### 6.4 `/me` 마이 페이지 (와이어프레임 1i) — `app/me/page.tsx`
 
 - **구조**: `.workspace` 프레임 재사용 — 좌측 `.rail`(설정 내비: 프로필/계정 탭 + "업무로 돌아가기" 링크) + 우측 `.settings-body`.
-- **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
+- **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + 자기소개 필드(여러 줄 textarea, `#n/150` 카운터, 선택 항목) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
 - **계정 탭**: 이메일 행, 연결된 계정 뱃지(GOOGLE), danger-zone(로그아웃 / 모든 데이터 초기화).
-- **동작**: 폼 초기값은 최초 1회만 사용자 정보에서 hydrate(`me/page.tsx:31-37`). `dirty`(변경됨) & `valid`(별명 비어있지 않음) & 저장 중이 아닐 때만 저장 가능. 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
+- **동작**: 폼 초기값은 프로필 조회 완료(`profileStatus === 'ready'`) 후 최초 1회만 hydrate — 조회 완료 전에는 스플래시 유지. `dirty`(변경됨) & `valid`(별명 비어있지 않음 — 자기소개는 비어도 유효) & 저장 중 아님 & `profileStatus === 'ready'`일 때만 저장 가능. 조회 실패 시 폼 전체 비활성 + 오류 안내 + "재시도" 버튼(`retryProfile`). 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
 
 ### 6.5 스플래시 (Splash) — `app/page.tsx`
 
@@ -607,13 +611,14 @@ body {
 
 ## 8. 데이터 모델 (Data Model, 디자인 영향분) — `lib/store.tsx`
 
-**`User` 타입 필드 전량** (`store.tsx:14-18`):
+**`User` 타입 필드 전량** (`store.tsx:16-21`):
 
 | 필드 | 타입 | 디자인 영향 |
 |---|---|---|
 | `nickname` | `string` | 최대 20자(`MAX_NICKNAME`, `me/page.tsx:12`), `#n/20` 카운터, "{nickname}님" 표기 |
 | `email` | `string` | 계정 탭 이메일 행 표시 |
 | `image` | `string \| null` | 프로필 이미지(Google 사진 URL 또는 업로드 dataURL). null이면 아바타에 닉네임 첫 글자 |
+| `introduction` | `string \| null` | 자기소개(선택). 최대 150자(`MAX_INTRODUCTION`, `me/page.tsx:13`), `#n/150` 카운터, 여러 줄 평문. null="없음"(placeholder 표시) |
 
 **`Post` 타입 필드 전량** (`store.tsx:20-28`):
 
@@ -628,11 +633,11 @@ body {
 | `deletedAt` | `number \| null` | null=일반, 값 있으면 휴지통 |
 
 **디자인 제약으로 이어지는 값**:
-- 별명 최대 20자 → `#n/20` 카운터(`me/page.tsx:158-160`).
+- 별명 최대 20자 → `#n/20` 카운터. 자기소개 최대 150자 → `#n/150` 카운터(하드 캡, 저장 시 trim·빈 값은 null).
 - 프로필 이미지 5MB 이하(`MAX_IMAGE_BYTES = 5 * 1024 * 1024`) + `image/*`만. 초과 시 "5MB 이하 이미지만 업로드할 수 있어요." 알림(`me/page.tsx:50-63`).
 - 최근 항목 상위 10개(`slice(0, 10)`, `workspace/page.tsx:26`).
 - **시드 샘플 4개**(`seedPosts`, `store.tsx:60-99`): "주간 업무 정리"(2일 전, favorite), "신제품 아이디어"(3일 전), "회의 메모"(5일 전), "읽을 자료 모음"(8일 전). 첫 로그인 & 저장된 글 없을 때만 시드(`store.tsx:125-131`).
-- **사용자 파생**: Supabase 세션(Google 이름·이메일·사진)이 기본값, 그 위에 `public.profile` 행(`name`/`image`, auth.users와 1:1)을 병합(`store.tsx`의 `user` memo). 프로필 행은 최초 로그인 시 DB 트리거(`on_auth_user_created` → `handle_new_user()`)가 Display name·아바타로 생성하고, `/me` 저장 시 upsert로 덮어쓴다.
+- **사용자 파생**: Supabase 세션(Google 이름·이메일·사진)이 기본값, 그 위에 `public.profile` 행(`name`/`image`/`introduction`, auth.users와 1:1)을 병합(`store.tsx`의 `user` memo — `introduction`은 Google 기본값이 없어 행 값 그대로, 없으면 null). 프로필 행은 최초 로그인 시 DB 트리거(`on_auth_user_created` → `handle_new_user()`)가 Display name·아바타로 생성하고, `/me` 저장 시 upsert로 덮어쓴다. 조회 상태는 `profileStatus('loading'|'ready'|'error')`로 노출되며 실패 시 `retryProfile()`로 재조회, `ready`가 아니면 `updateUser`가 저장을 거부한다(덮어쓰기 차단).
 - localStorage 키: `mini-notion:posts`(글 전용). 레거시 키 `mini-notion:user`, `mini-notion:user-overlay:<uid>`는 초기화 시 제거.
 
 **`formatDate`** (`lib/format.ts`): `< 60s` → "방금", `< 1h` → "n분 전", `< 24h` → "n시간 전", 그 이상 → "M월 D일". 목록·메타·브레드크럼의 모든 상대 시간 표기가 이 함수 하나에서 나온다.
@@ -657,13 +662,13 @@ body {
 
 ## 10. 접근성 & 반응형 (Accessibility & Responsive)
 
-**포커스 가시성**: 입력 컨테이너(`.rail-search`, `.promptbox-inner`, `.field`)는 `:focus-within`에서 `border-color:--accent` + `box-shadow:--shadow-focus`(= `0 0 0 3px` / `--focus-ring` = `color-mix(in srgb, --violet-500 40%, transparent)`). 텍스트 입력·에디터 인풋은 `outline:none`으로 브라우저 기본 아웃라인을 제거(포커스 표시는 커서/컨테이너 링에 의존).
+**포커스 가시성**: 입력 컨테이너(`.rail-search`, `.promptbox-inner`, `.field` — 여러 줄 변형 `.field-multi` 포함)는 `:focus-within`에서 `border-color:--accent` + `box-shadow:--shadow-focus`(= `0 0 0 3px` / `--focus-ring` = `color-mix(in srgb, --violet-500 40%, transparent)`). 텍스트 입력·에디터 인풋·`.field textarea`는 `outline:none`으로 브라우저 기본 아웃라인을 제거(포커스 표시는 커서/컨테이너 링에 의존). /me 폼 입력에는 명시적 접근성 이름이 있다(`aria-label="별명"`/`"자기소개"`).
 
 **대비**: 본문 `--text-primary`(#2f2f2b) on `--white`(#ffffff)로 높은 대비. 3차 텍스트 `--text-tertiary`(#90908a)는 메타/플레이스홀더용 저대비(※ WCAG AA 정량 검증은 코드에 없음 — 확인 불가).
 
 **시맨틱/보조 표기**: `<html lang="ko">`(`layout.tsx:24`). Avatar `img alt` 동적 생성. 전송 버튼 `aria-label="새 글 만들기"`. GoogleLogo `aria-hidden="true"`. 레일 푸터 `title="마이 페이지"`. 휴지통 목록 액션은 `role="button" tabIndex={0}`(`workspace/page.tsx:162-187`).
 
-**반응형(`Responsive (light)`, `app/globals.css:1025-1038`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 260→220px, 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
+**반응형(`Responsive (light)`, `app/globals.css:1135-1147`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 260→220px, 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
 
 ---
 
@@ -680,13 +685,13 @@ body {
 | Workspace layout | `app/globals.css:431-447` / `app/workspace/page.tsx` |
 | Prompt box + slash menu | `app/globals.css:449-572` / `components/PromptBox.tsx` |
 | Post list | `app/globals.css:574-664` / `app/workspace/page.tsx:136-191` |
-| Detail / editor | `app/globals.css:666-785` / `components/Editor.tsx` |
+| Detail / editor | `app/globals.css:668-858` / `components/Editor.tsx` |
 | 랜덤 고양이 커버 | `app/globals.css:721-774` / `components/CatCover.tsx` |
-| Empty state | `app/globals.css:787-833` / `app/workspace/page.tsx:212-235` |
-| Login | `app/globals.css:835-890` / `app/login/page.tsx` |
-| Splash | `app/globals.css:892-899` / `app/page.tsx` |
-| Settings (my page) | `app/globals.css:901-1023` / `app/me/page.tsx` |
-| Responsive | `app/globals.css:1025-1038` |
+| Empty state | `app/globals.css:860-906` / `app/workspace/page.tsx:212-235` |
+| Login | `app/globals.css:908-969` / `app/login/page.tsx` |
+| Splash | `app/globals.css:971-978` / `app/page.tsx` |
+| Settings (my page) | `app/globals.css:980-1133` / `app/me/page.tsx` |
+| Responsive | `app/globals.css:1135-1147` |
 | 폰트 로딩 | `app/layout.tsx:6-11` |
 | 전역 프레임/Provider | `app/layout.tsx:18-30` |
 | 상태·데이터 모델 | `lib/store.tsx` |

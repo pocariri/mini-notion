@@ -10,15 +10,18 @@ import { useStore } from '@/lib/store'
 type Tab = 'profile' | 'account'
 
 const MAX_NICKNAME = 20
+const MAX_INTRODUCTION = 150
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 export default function MePage() {
-  const { ready, user, updateUser, logout, resetAll } = useStore()
+  const { ready, user, profileStatus, retryProfile, updateUser, logout, resetAll } =
+    useStore()
   const router = useRouter()
 
   const [tab, setTab] = useState<Tab>('profile')
   const [nickname, setNickname] = useState('')
   const [image, setImage] = useState<string | null>(null)
+  const [introduction, setIntroduction] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -29,16 +32,19 @@ export default function MePage() {
     if (ready && !user) router.replace('/login')
   }, [ready, user, router])
 
-  // 폼 초기값은 최초 진입 시 한 번만 사용자 정보에서 가져온다.
+  // 폼 초기값은 프로필 조회가 끝난 뒤 한 번만 가져온다.
+  // 세션만 보고 채우면 DB 값이 도착하기 전의 Google 기본값이 폼에 남아,
+  // 그대로 저장하면 저장된 프로필을 덮어쓴다(FR-008).
   useEffect(() => {
-    if (user && !hydrated) {
+    if (user && profileStatus === 'ready' && !hydrated) {
       setNickname(user.nickname)
       setImage(user.image)
+      setIntroduction(user.introduction ?? '')
       setHydrated(true)
     }
-  }, [user, hydrated])
+  }, [user, profileStatus, hydrated])
 
-  if (!ready || !user) {
+  if (!ready || !user || profileStatus === 'loading') {
     return (
       <div className="splash">
         <span className="login-logo">m</span>
@@ -46,7 +52,13 @@ export default function MePage() {
     )
   }
 
-  const dirty = nickname !== user.nickname || image !== user.image
+  // 프로필 조회 실패 — 폼에 보이는 값을 신뢰할 수 없으므로 입력·저장을 전부 잠근다(FR-019·020).
+  const profileError = profileStatus === 'error'
+
+  const dirty =
+    nickname !== user.nickname ||
+    image !== user.image ||
+    introduction !== (user.introduction ?? '')
   const valid = nickname.trim().length > 0
 
   const handleFile = (file: File | undefined) => {
@@ -65,17 +77,24 @@ export default function MePage() {
   }
 
   const handleSave = async () => {
-    if (!dirty || !valid || saving) return
+    if (!dirty || !valid || saving || profileStatus !== 'ready') return
     setSaving(true)
     setSaveError(null)
     const trimmed = nickname.trim()
-    const { error } = await updateUser({ nickname: trimmed, image })
+    // 자기소개는 선택 항목 — trim 결과가 비면 "없음"(null)으로 저장한다.
+    const introTrimmed = introduction.trim()
+    const { error } = await updateUser({
+      nickname: trimmed,
+      image,
+      introduction: introTrimmed === '' ? null : introTrimmed,
+    })
     setSaving(false)
     if (error) {
       setSaveError('저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
       return
     }
     setNickname(trimmed)
+    setIntroduction(introTrimmed)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -125,16 +144,35 @@ export default function MePage() {
           <>
             <h1 className="settings-title">프로필</h1>
 
+            {profileError && (
+              <div className="save-row" style={{ margin: '0 0 24px' }}>
+                <span className="save-error" role="alert">
+                  프로필을 불러오지 못했어요.
+                </span>
+                <button className="btn" onClick={retryProfile}>
+                  재시도
+                </button>
+              </div>
+            )}
+
             <div className="profile-row">
               <Avatar user={previewUser} size={78} />
               <div>
                 <div className="profile-row-actions">
-                  <button className="btn" onClick={() => fileRef.current?.click()}>
+                  <button
+                    className="btn"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={profileError}
+                  >
                     <ImagePlus size={14} />
                     이미지 변경
                   </button>
                   {image && (
-                    <button className="btn btn-ghost" onClick={() => setImage(null)}>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => setImage(null)}
+                      disabled={profileError}
+                    >
                       <X size={14} />
                       제거
                     </button>
@@ -163,6 +201,8 @@ export default function MePage() {
                   type="text"
                   value={nickname}
                   maxLength={MAX_NICKNAME}
+                  aria-label="별명"
+                  disabled={profileError}
                   onChange={(e) => setNickname(e.target.value)}
                 />
                 <span className="counter">
@@ -170,6 +210,27 @@ export default function MePage() {
                 </span>
               </label>
               <p className="hint">서비스에서 표시될 이름이에요.</p>
+            </div>
+
+            <div className="field-block">
+              <div className="section-label" style={{ paddingLeft: 0 }}>
+                자기소개
+              </div>
+              <label className="field field-multi">
+                <textarea
+                  value={introduction}
+                  maxLength={MAX_INTRODUCTION}
+                  rows={3}
+                  aria-label="자기소개"
+                  placeholder="자신을 간단히 소개해 보세요."
+                  disabled={profileError}
+                  onChange={(e) => setIntroduction(e.target.value)}
+                />
+                <span className="counter">
+                  #{introduction.length}/{MAX_INTRODUCTION}
+                </span>
+              </label>
+              <p className="hint">150자까지 남길 수 있어요.</p>
             </div>
 
             <p className="hint" style={{ margin: '0 0 24px' }}>
@@ -180,7 +241,7 @@ export default function MePage() {
               <button
                 className="btn btn-accent"
                 onClick={handleSave}
-                disabled={!dirty || !valid || saving}
+                disabled={!dirty || !valid || saving || profileStatus !== 'ready'}
               >
                 {saving ? '저장 중…' : '변경 사항 저장'}
               </button>
