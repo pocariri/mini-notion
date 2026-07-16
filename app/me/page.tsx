@@ -81,7 +81,7 @@ export default function MePage() {
   }
 
   const handleReset = () => {
-    if (!window.confirm('모든 글과 계정 정보를 삭제할까요? 되돌릴 수 없어요.')) return
+    if (!window.confirm('모든 페이지와 계정 정보를 삭제할까요? 되돌릴 수 없어요.')) return
     resetAll()
     router.replace('/login')
   }

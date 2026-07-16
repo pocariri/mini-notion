@@ -19,55 +19,66 @@ export type User = {
   image: string | null
 }
 
-export type Post = {
+// public.page 한 행. 저장 구조가 확정되어 있어 이 네 가지가 담을 수 있는 전부다.
+// (즐겨찾기·수정 시각·삭제 표시를 담을 칼럼이 없어 해당 기능이 존재하지 않는다.)
+export type Page = {
   id: string
   title: string
   content: string
-  favorite: boolean
   createdAt: number
-  updatedAt: number
-  deletedAt: number | null
 }
+
+// 목록이 "비었다"와 "아직 모른다"와 "못 불러왔다"는 서로 다른 상태다.
+// 이걸 구분하지 않으면 로딩 중에 "페이지가 없어요"가 번쩍인다.
+export type PagesStatus = 'loading' | 'ready' | 'error'
+export type SaveStatus = 'saved' | 'saving' | 'error'
 
 type Store = {
   ready: boolean
   user: User | null
-  posts: Post[]
+  pages: Page[]
+  pagesStatus: PagesStatus
+  saveStatus: SaveStatus
+  notice: string | null
+  dismissNotice: () => void
   login: () => Promise<{ error: string | null }>
   logout: () => Promise<void>
   updateUser: (patch: Partial<User>) => Promise<{ error: string | null }>
-  createPost: (title?: string, content?: string) => string
-  updatePost: (id: string, patch: Partial<Pick<Post, 'title' | 'content'>>) => void
-  toggleFavorite: (id: string) => void
-  trashPost: (id: string) => void
-  restorePost: (id: string) => void
-  deletePostForever: (id: string) => void
+  createPage: (title?: string, content?: string) => Promise<string | null>
+  updatePage: (id: string, patch: Partial<Pick<Page, 'title' | 'content'>>) => void
+  deletePage: (id: string) => Promise<void>
+  discardIfEmpty: (id: string) => Promise<void>
+  flushPending: () => Promise<void>
   resetAll: () => Promise<void>
 }
 
-const POSTS_KEY = 'mini-notion:posts'
+// 입력이 멈춘 뒤 저장까지의 지연. 타이핑을 끊지 않으면서 요청을 합칠 만큼 짧다.
+const SAVE_DEBOUNCE_MS = 800
+
 // 가짜 로그인 시절의 사용자 키 — 실제 세션과 섞이지 않도록 초기화 시 제거한다.
 const LEGACY_USER_KEY = 'mini-notion:user'
 // 프로필이 Supabase(public.profile)로 이전되기 전의 로컬 오버레이 키 — 초기화 시 제거한다.
 const LEGACY_OVERLAY_PREFIX = 'mini-notion:user-overlay:'
+// 페이지가 Supabase(public.page)로 이전되기 전의 로컬 저장 키 — 초기화 시 제거한다.
+// 이 브라우저에 남은 옛 글은 서버로 옮기지 않는다.
+const LEGACY_PAGES_KEY = 'mini-notion:posts'
 
 // Supabase public.profile 행(auth.users와 1:1). 최초 로그인 시 DB 트리거가
 // Google 이름·사진을 초기값으로 만들어 주고, /me에서 수정하면 이 행을 덮어쓴다.
 // image는 "명시적으로 제거"를 null로 저장한다(행이 있으면 DB 값이 진실).
 type Profile = { name: string | null; image: string | null }
 
+type PageRow = {
+  id: string
+  created_at: string
+  title: string | null
+  content: string | null
+  user_id: string
+}
+
 type AuthUser = { uid: string; base: User }
 
 const StoreContext = createContext<Store | null>(null)
-
-function loadJSON<T>(key: string): T | null {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : null
-  } catch {
-    return null
-  }
-}
 
 function userFromSession(session: Session | null): AuthUser | null {
   const su = session?.user
@@ -91,62 +102,42 @@ function userFromSession(session: Session | null): AuthUser | null {
   }
 }
 
-function seedPosts(now: number): Post[] {
-  const day = 86_400_000
-  const make = (
-    title: string,
-    content: string,
-    age: number,
-    favorite = false,
-  ): Post => ({
-    id: crypto.randomUUID(),
-    title,
-    content,
-    favorite,
-    createdAt: now - age,
-    updatedAt: now - age,
-    deletedAt: null,
-  })
-  return [
-    make(
-      '주간 업무 정리',
-      '이번 주 목표\n- 미니 노션 MVP 마무리\n- 디자인 시스템 토큰 정리\n- 회의록 템플릿 만들기\n\n메모\n수요일 오후는 집중 작업 시간으로 비워 두기.',
-      2 * day,
-      true,
-    ),
-    make(
-      '신제품 아이디어',
-      '- 개인용 미니 노션: 글 CRUD만 있는 가장 단순한 버전\n- 슬래시 명령(/page)으로 빠르게 새 글 만들기\n- 나중에: 태그 분류, 검색, 할 일 목록',
-      3 * day,
-    ),
-    make(
-      '회의 메모',
-      '7월 첫 주 회의\n- MVP 범위: 로그인, 업무 페이지, 글 상세, 마이 페이지\n- 운영 비용 0원 유지\n- 다음 회의까지 와이어프레임 확정',
-      5 * day,
-    ),
-    make(
-      '읽을 자료 모음',
-      '- PRD 작성 가이드\n- 디자인 핸드오프 체크리스트\n- Next.js App Router 문서',
-      8 * day,
-    ),
-  ]
+// DB는 title/content에 NULL을 허용한다. UI 전체가 문자열을 전제하므로 경계에서 한 번 정규화한다.
+function pageFromRow(row: PageRow): Page {
+  return {
+    id: row.id,
+    title: row.title ?? '',
+    content: row.content ?? '',
+    createdAt: Date.parse(row.created_at),
+  }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const hadStoredPosts = useRef(false)
+  const [pages, setPages] = useState<Page[]>([])
+  const [pagesStatus, setPagesStatus] = useState<PagesStatus>('loading')
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  const [notice, setNotice] = useState<string | null>(null)
+
+  // 저장 대기열. 페이지별로 "아직 서버에 못 보낸 변경"과 그 타이머를 들고 있다.
+  const pendingRef = useRef(new Map<string, Partial<Pick<Page, 'title' | 'content'>>>())
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // 같은 페이지에 저장이 겹치면 응답 순서가 뒤집혀 옛 값이 최종본이 될 수 있다.
+  // 페이지당 한 번에 하나만 보내고, 그 사이 쌓인 변경은 끝난 뒤 이어서 보낸다.
+  const inflightRef = useRef(new Set<string>())
+  // 콜백이 최신 목록을 stale closure 없이 읽기 위한 거울.
+  const pagesRef = useRef<Page[]>([])
+  pagesRef.current = pages
 
   useEffect(() => {
     localStorage.removeItem(LEGACY_USER_KEY)
+    localStorage.removeItem(LEGACY_PAGES_KEY)
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
       if (key?.startsWith(LEGACY_OVERLAY_PREFIX)) localStorage.removeItem(key)
     }
-    hadStoredPosts.current = localStorage.getItem(POSTS_KEY) !== null
-    setPosts(loadJSON<Post[]>(POSTS_KEY) ?? [])
 
     let cancelled = false
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -185,17 +176,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [uid])
 
-  // 이 브라우저에서 글을 저장한 적 없는 첫 로그인이면 시드 글을 만든다.
+  // 계정의 페이지를 서버에서 불러온다. 계정이 바뀌거나 로그아웃하면 이전 목록을 즉시 버린다.
+  // 소유자 필터는 명확성과 전송량을 위한 것이지 보안 경계가 아니다 — RLS가 애초에 남의 행을 주지 않는다.
   useEffect(() => {
-    if (!uid || hadStoredPosts.current) return
-    setPosts(seedPosts(Date.now()))
-    hadStoredPosts.current = true
-  }, [uid])
-
-  useEffect(() => {
+    // 계정이 바뀌거나 로그아웃하면 이전 목록을 먼저 버린다. 새 목록이 도착할 때까지
+    // 남겨 두면 다른 사람의 페이지가 한 프레임이라도 화면에 보인다.
+    setPages([])
     if (!ready) return
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts))
-  }, [posts, ready])
+    if (!uid) {
+      setPagesStatus('ready')
+      return
+    }
+    setPagesStatus('loading')
+    let cancelled = false
+    supabase
+      .from('page')
+      .select('id, created_at, title, content, user_id')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          setPagesStatus('error')
+          return
+        }
+        setPages(((data ?? []) as PageRow[]).map(pageFromRow))
+        setPagesStatus('ready')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ready, uid])
 
   const login = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -208,6 +219,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await supabase.auth.signOut()
   }, [])
+
+  const dismissNotice = useCallback(() => setNotice(null), [])
 
   const updateUser = useCallback(
     async (patch: Partial<User>): Promise<{ error: string | null }> => {
@@ -235,52 +248,140 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [uid, authUser, profile],
   )
 
-  const createPost = useCallback((title = '', content = '') => {
-    const now = Date.now()
-    const post: Post = {
-      id: crypto.randomUUID(),
-      title,
-      content,
-      favorite: false,
-      createdAt: now,
-      updatedAt: now,
-      deletedAt: null,
+  // 대기 중인 변경을 서버로 보낸다. 저장 중 쌓인 변경은 같은 루프에서 이어서 보내
+  // 요청이 항상 입력 순서대로 도착하게 한다.
+  const flushOne = useCallback(async (id: string) => {
+    if (inflightRef.current.has(id)) return
+    let patch = pendingRef.current.get(id)
+    if (!patch) return
+    inflightRef.current.add(id)
+    try {
+      while (patch) {
+        pendingRef.current.delete(id)
+        setSaveStatus('saving')
+        const { error } = await supabase.from('page').update(patch).eq('id', id)
+        if (error) {
+          // 사용자가 입력한 내용은 되돌리지 않는다. 되돌리면 방금 쓴 글이 사라진다.
+          setSaveStatus('error')
+          return
+        }
+        setSaveStatus('saved')
+        patch = pendingRef.current.get(id)
+      }
+    } finally {
+      inflightRef.current.delete(id)
     }
-    setPosts((ps) => [post, ...ps])
-    return post.id
   }, [])
 
-  const updatePost = useCallback(
-    (id: string, patch: Partial<Pick<Post, 'title' | 'content'>>) => {
-      setPosts((ps) =>
-        ps.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p)),
-      )
+  const createPage = useCallback(
+    async (title = '', content = ''): Promise<string | null> => {
+      // 소유자 없는 페이지는 존재할 수 없다. RLS도 이를 거부하지만, 요청 자체를
+      // 보내지 않는 편이 사용자에게 더 정직하다.
+      if (!uid) return null
+      // 서버 왕복을 기다리지 않고 바로 편집기를 열 수 있도록 id를 여기서 만든다.
+      const id = crypto.randomUUID()
+      setPages((ps) => [{ id, title, content, createdAt: Date.now() }, ...ps])
+
+      const { data, error } = await supabase
+        .from('page')
+        .insert({ id, title, content, user_id: uid })
+        .select()
+        .single()
+
+      if (error) {
+        setPages((ps) => ps.filter((p) => p.id !== id))
+        setNotice('페이지를 만들지 못했어요. 잠시 후 다시 시도해 주세요.')
+        return null
+      }
+      // created_at은 서버 값이 진실이다. 낙관적으로 쓴 클라이언트 시각을 교체한다.
+      if (data) {
+        const saved = pageFromRow(data as PageRow)
+        setPages((ps) => ps.map((p) => (p.id === id ? saved : p)))
+      }
+      return id
     },
-    [],
+    [uid],
   )
 
-  const toggleFavorite = useCallback((id: string) => {
-    setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p)))
+  const updatePage = useCallback(
+    (id: string, patch: Partial<Pick<Page, 'title' | 'content'>>) => {
+      // 세션이 만료된 뒤의 저장은 서버가 어차피 거부한다. 보내지 않는다.
+      if (!uid) return
+      setPages((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+      pendingRef.current.set(id, { ...(pendingRef.current.get(id) ?? {}), ...patch })
+
+      const existing = timersRef.current.get(id)
+      if (existing) clearTimeout(existing)
+      timersRef.current.set(
+        id,
+        setTimeout(() => {
+          timersRef.current.delete(id)
+          void flushOne(id)
+        }, SAVE_DEBOUNCE_MS),
+      )
+    },
+    [uid, flushOne],
+  )
+
+  const flushPending = useCallback(async () => {
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+    const ids = [...pendingRef.current.keys()]
+    await Promise.all(ids.map((id) => flushOne(id)))
+  }, [flushOne])
+
+  // 화면에서 먼저 지우고 서버에 보낸다. 실패하면 원래 자리에 되돌린다 —
+  // 화면과 서버가 어긋난 채 남으면 사용자는 지운 줄 알고 나갔다가 살아 있는 걸 보게 된다.
+  const removePage = useCallback(async (id: string, announce: boolean) => {
+    const index = pagesRef.current.findIndex((p) => p.id === id)
+    if (index < 0) return
+    const removed = pagesRef.current[index]
+
+    pendingRef.current.delete(id)
+    const timer = timersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      timersRef.current.delete(id)
+    }
+
+    setPages((ps) => ps.filter((p) => p.id !== id))
+    const { error } = await supabase.from('page').delete().eq('id', id)
+    if (error) {
+      // 원래 자리에 되돌린다. 끝에 붙이면 사용자가 목록이 뒤섞인 것으로 본다.
+      setPages((ps) => {
+        const next = [...ps]
+        next.splice(Math.min(index, next.length), 0, removed)
+        return next
+      })
+      // 사용자가 직접 요청한 삭제만 실패를 알린다. 빈 페이지 자동 정리는
+      // 사용자가 요청한 적 없으므로 조용히 실패한다.
+      if (announce) setNotice('페이지를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.')
+    }
   }, [])
 
-  const trashPost = useCallback((id: string) => {
-    setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, deletedAt: Date.now() } : p)))
-  }, [])
+  // 삭제 확인은 호출자(UI)의 몫이다. 스토어가 확인을 물으면 아래 discardIfEmpty가
+  // 확인 없이 지울 수 없게 된다.
+  const deletePage = useCallback(
+    async (id: string) => {
+      await removePage(id, true)
+    },
+    [removePage],
+  )
 
-  const restorePost = useCallback((id: string) => {
-    setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, deletedAt: null } : p)))
-  }, [])
-
-  const deletePostForever = useCallback((id: string) => {
-    setPosts((ps) => ps.filter((p) => p.id !== id))
-  }, [])
+  // 새로 만들고 아무것도 쓰지 않은 페이지가 서버에 쌓이지 않도록 이탈 시 정리한다.
+  const discardIfEmpty = useCallback(
+    async (id: string) => {
+      const page = pagesRef.current.find((p) => p.id === id)
+      if (!page || page.title !== '' || page.content !== '') return
+      await removePage(id, false)
+    },
+    [removePage],
+  )
 
   const resetAll = useCallback(async () => {
-    setPosts([])
-    localStorage.removeItem(POSTS_KEY)
-    hadStoredPosts.current = false
-    // 프로필 행도 Google 계정 초기값으로 되돌린다.
     if (uid && authUser) {
+      // 로컬만 비우면 재로그인 시 되살아난다. 서버에서도 지운다.
+      await supabase.from('page').delete().eq('user_id', uid)
       await supabase
         .from('profile')
         .upsert(
@@ -288,6 +389,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           { onConflict: 'user_id' },
         )
     }
+    pendingRef.current.clear()
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+    setPages([])
     setProfile(null)
     await supabase.auth.signOut()
   }, [uid, authUser])
@@ -306,31 +411,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       ready,
       user,
-      posts,
+      pages,
+      pagesStatus,
+      saveStatus,
+      notice,
+      dismissNotice,
       login,
       logout,
       updateUser,
-      createPost,
-      updatePost,
-      toggleFavorite,
-      trashPost,
-      restorePost,
-      deletePostForever,
+      createPage,
+      updatePage,
+      deletePage,
+      discardIfEmpty,
+      flushPending,
       resetAll,
     }),
     [
       ready,
       user,
-      posts,
+      pages,
+      pagesStatus,
+      saveStatus,
+      notice,
+      dismissNotice,
       login,
       logout,
       updateUser,
-      createPost,
-      updatePost,
-      toggleFavorite,
-      trashPost,
-      restorePost,
-      deletePostForever,
+      createPage,
+      updatePage,
+      deletePage,
+      discardIfEmpty,
+      flushPending,
       resetAll,
     ],
   )

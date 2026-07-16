@@ -252,12 +252,6 @@ button.chip:hover {
   background: var(--surface-hover);
 }
 
-.chip.on {
-  border-color: var(--accent-soft-border);
-  background: var(--accent-soft);
-  color: var(--text-accent);
-}
-
 /* ---------- Avatar ---------- */
 .avatar {
   display: inline-flex;
@@ -572,7 +566,7 @@ button.chip:hover {
   color: var(--text-tertiary);
 }
 
-/* ---------- Post list ---------- */
+/* ---------- Page list ---------- */
 .list-section-label {
   padding: 4px 2px 8px;
   font-size: var(--text-micro);
@@ -640,11 +634,6 @@ button.chip:hover {
   color: var(--text-tertiary);
 }
 
-.listrow-meta .star {
-  color: var(--amber-500);
-  display: inline-flex;
-}
-
 .list-empty {
   padding: 24px 8px;
   font-size: var(--text-xs);
@@ -652,16 +641,78 @@ button.chip:hover {
   text-align: center;
 }
 
-.trash-row-actions {
+/* 불러오기 실패. 빈 상태와 반드시 구분해야 한다 —
+   "페이지가 없다"와 "못 불러왔다"를 같은 문구로 보여주면 사용자는 글이 사라진 줄 안다. */
+.list-error {
+  padding: 24px 8px;
+  font-size: var(--text-xs);
+  color: var(--red-500);
+  text-align: center;
+}
+
+/* 낙관적 갱신이 실패해 되돌렸을 때의 인라인 알림. */
+.list-notice {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--red-500) 25%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--red-50);
+  font-size: var(--text-xs);
+  color: var(--red-500);
+}
+
+.list-notice button {
+  flex: none;
+  color: var(--red-500);
+  opacity: 0.7;
+}
+
+.list-notice button:hover {
+  opacity: 1;
+}
+
+/* 목록 로딩 자리표시. .listrow와 같은 박스를 차지해 실제 목록으로 바뀔 때
+   레이아웃이 흔들리지 않는다(.cover가 세 상태에 같은 박스를 쓰는 것과 같은 원리).
+   커버 스켈레톤의 pulse를 그대로 재사용한다. */
+.listrow-skeleton {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.listrow-skeleton span {
+  display: block;
+  border-radius: var(--radius-xs);
+  animation: cover-pulse var(--dur-shimmer) ease-in-out infinite;
+}
+
+.listrow-skeleton .sk-title {
+  width: 62%;
+  height: 13px;
+}
+
+.listrow-skeleton .sk-snippet {
+  width: 88%;
+  height: 11px;
+  margin-top: 6px;
+}
+
+.listrow-skeleton .sk-meta {
+  width: 34px;
+  height: 9px;
   margin-top: 9px;
 }
 
-.trash-row-actions .btn {
-  padding: 4px 10px;
-  font-size: var(--text-2xs);
-  border-radius: var(--radius-sm);
+@media (prefers-reduced-motion: reduce) {
+  .listrow-skeleton span {
+    animation: none;
+  }
 }
 
 /* ---------- Detail / editor ---------- */
@@ -709,6 +760,11 @@ button.chip:hover {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   white-space: nowrap;
+}
+
+/* 저장 실패. 사용자가 계속 타이핑하는 동안에도 눈에 띄어야 하므로 danger 색을 쓴다. */
+.save-state.err {
+  color: var(--red-500);
 }
 
 .toolbar-actions {
@@ -835,25 +891,6 @@ button.chip:hover {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-xs);
-}
-
-.trash-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 26px;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--red-500) 25%, transparent);
-  border-radius: var(--radius-lg);
-  background: var(--red-50);
-  font-size: var(--text-sm);
-  color: var(--red-500);
-}
-
-.trash-banner-actions {
-  display: flex;
-  gap: 6px;
 }
 
 /* ---------- Empty state ---------- */

@@ -12,7 +12,7 @@ const pretendard = localFont({
 
 export const metadata: Metadata = {
   title: 'mini notion — 개인 업무를, 내 방식대로',
-  description: '개인 업무 관리를 위한 미니 노션. 글을 만들고, 정리하고, 내 방식대로 관리하세요.',
+  description: '개인 업무 관리를 위한 미니 노션. 페이지를 만들고 내 방식대로 관리하세요.',
 }
 
 export default function RootLayout({

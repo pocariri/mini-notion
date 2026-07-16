@@ -2,60 +2,37 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, RotateCcw, Star, X } from 'lucide-react'
+import { FileText, X } from 'lucide-react'
 import Editor from '@/components/Editor'
 import PromptBox from '@/components/PromptBox'
 import Rail, { NAV_LABELS, type NavKey } from '@/components/Rail'
 import { formatDate } from '@/lib/format'
-import { useStore, type Post } from '@/lib/store'
+import { useStore, type Page } from '@/lib/store'
 
 const SUGGESTIONS = ['주간 업무 정리', '할 일 적기', '회의 메모']
 
-function filterPosts(posts: Post[], nav: NavKey, search: string): Post[] {
-  let list: Post[]
-  switch (nav) {
-    case 'favorites':
-      list = posts
-        .filter((p) => !p.deletedAt && p.favorite)
-        .sort((a, b) => b.createdAt - a.createdAt)
-      break
-    case 'recent':
-      list = posts
-        .filter((p) => !p.deletedAt)
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, 10)
-      break
-    case 'trash':
-      list = posts
-        .filter((p) => p.deletedAt)
-        .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0))
-      break
-    default:
-      list = posts
-        .filter((p) => !p.deletedAt)
-        .sort((a, b) => b.createdAt - a.createdAt)
-  }
+function filterPages(pages: Page[], search: string): Page[] {
   const q = search.trim().toLowerCase()
-  if (q) {
-    list = list.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q),
-    )
-  }
-  return list
+  if (!q) return pages
+  return pages.filter(
+    (p) => p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q),
+  )
 }
 
 export default function WorkspacePage() {
   const {
     ready,
     user,
-    posts,
-    createPost,
-    updatePost,
-    toggleFavorite,
-    trashPost,
-    restorePost,
-    deletePostForever,
+    pages,
+    pagesStatus,
+    saveStatus,
+    notice,
+    dismissNotice,
+    createPage,
+    updatePage,
+    deletePage,
+    discardIfEmpty,
+    flushPending,
   } = useStore()
   const router = useRouter()
 
@@ -68,19 +45,9 @@ export default function WorkspacePage() {
     if (ready && !user) router.replace('/login')
   }, [ready, user, router])
 
-  const visible = useMemo(
-    () => filterPosts(posts, nav, search),
-    [posts, nav, search],
-  )
-  const counts = useMemo(
-    () => ({
-      all: posts.filter((p) => !p.deletedAt).length,
-      favorites: posts.filter((p) => !p.deletedAt && p.favorite).length,
-      trash: posts.filter((p) => p.deletedAt).length,
-    }),
-    [posts],
-  )
-  const selected = posts.find((p) => p.id === selectedId) ?? null
+  const visible = useMemo(() => filterPages(pages, search), [pages, search])
+  const counts = useMemo(() => ({ all: pages.length }), [pages])
+  const selected = pages.find((p) => p.id === selectedId) ?? null
 
   if (!ready || !user) {
     return (
@@ -90,18 +57,32 @@ export default function WorkspacePage() {
     )
   }
 
-  const handleCreate = (title: string) => {
-    const id = createPost(title)
-    setNav('all')
+  // 페이지를 떠날 때 대기 중인 저장을 먼저 보내고, 아무것도 안 쓴 빈 페이지는 정리한다.
+  const leaveCurrent = async () => {
+    const leaving = selectedId
+    await flushPending()
+    if (leaving) await discardIfEmpty(leaving)
+  }
+
+  const handleSelect = async (id: string) => {
+    if (id === selectedId) return
+    await leaveCurrent()
+    setSelectedId(id)
+  }
+
+  const handleCreate = async (title: string) => {
+    await leaveCurrent()
     setSearch('')
+    const id = await createPage(title)
+    if (!id) return
     setSelectedId(id)
     setFocusId(title ? null : id)
   }
 
-  const handleDeleteForever = (id: string) => {
-    if (!window.confirm('이 글을 영구 삭제할까요? 되돌릴 수 없어요.')) return
-    deletePostForever(id)
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('이 페이지를 삭제할까요? 되돌릴 수 없어요.')) return
     if (selectedId === id) setSelectedId(null)
+    await deletePage(id)
   }
 
   const sectionLabel = search.trim()
@@ -121,93 +102,70 @@ export default function WorkspacePage() {
 
       <section className="listpane">
         <PromptBox onCreate={handleCreate} />
-        <div className="list-section-label">{sectionLabel}</div>
 
-        {visible.length === 0 && (
-          <div className="list-empty">
-            {nav === 'trash'
-              ? '휴지통이 비어 있어요.'
-              : search.trim()
-                ? '검색 결과가 없어요.'
-                : '아직 글이 없어요. /page로 시작해 보세요.'}
+        {notice && (
+          <div className="list-notice" role="alert">
+            <span>{notice}</span>
+            <button type="button" aria-label="알림 닫기" onClick={dismissNotice}>
+              <X size={12} />
+            </button>
           </div>
         )}
 
-        {visible.map((post) => (
-          <button
-            key={post.id}
-            className={`listrow${post.id === selectedId ? ' sel' : ''}`}
-            onClick={() => setSelectedId(post.id)}
-          >
-            <span className={`listrow-title${post.title ? '' : ' untitled'}`}>
-              {post.title || '제목 없음'}
-            </span>
-            {post.content && (
-              <span className="listrow-snippet">
-                {post.content.split('\n')[0]}
+        <div className="list-section-label">{sectionLabel}</div>
+
+        {/* 불러오는 중에는 자리표시만 보여준다. 여기서 빈 상태 안내를 띄우면
+            페이지가 있는 사용자에게 "없어요"가 번쩍인다. */}
+        {pagesStatus === 'loading' &&
+          [0, 1, 2].map((i) => (
+            <div key={i} className="listrow-skeleton" aria-hidden="true">
+              <span className="sk-title" />
+              <span className="sk-snippet" />
+              <span className="sk-meta" />
+            </div>
+          ))}
+
+        {pagesStatus === 'error' && (
+          <div className="list-error" role="alert">
+            페이지를 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요.
+          </div>
+        )}
+
+        {pagesStatus === 'ready' && visible.length === 0 && (
+          <div className="list-empty">
+            {search.trim()
+              ? '검색 결과가 없어요.'
+              : '아직 페이지가 없어요. /page로 시작해 보세요.'}
+          </div>
+        )}
+
+        {pagesStatus === 'ready' &&
+          visible.map((page) => (
+            <button
+              key={page.id}
+              className={`listrow${page.id === selectedId ? ' sel' : ''}`}
+              onClick={() => handleSelect(page.id)}
+            >
+              <span className={`listrow-title${page.title ? '' : ' untitled'}`}>
+                {page.title || '제목 없음'}
               </span>
-            )}
-            <span className="listrow-meta">
-              {post.favorite && nav !== 'trash' && (
-                <Star size={11} className="star" fill="currentColor" />
+              {page.content && (
+                <span className="listrow-snippet">{page.content.split('\n')[0]}</span>
               )}
-              {nav === 'trash'
-                ? `삭제 ${formatDate(post.deletedAt ?? 0)}`
-                : nav === 'recent'
-                  ? `수정 ${formatDate(post.updatedAt)}`
-                  : formatDate(post.createdAt)}
-            </span>
-            {nav === 'trash' && (
-              <span className="trash-row-actions">
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="btn"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    restorePost(post.id)
-                    setNav('all')
-                    setSelectedId(post.id)
-                  }}
-                >
-                  <RotateCcw size={12} />
-                  복원
-                </span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="btn btn-danger"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDeleteForever(post.id)
-                  }}
-                >
-                  <X size={12} />
-                  영구 삭제
-                </span>
-              </span>
-            )}
-          </button>
-        ))}
+              <span className="listrow-meta">{formatDate(page.createdAt)}</span>
+            </button>
+          ))}
       </section>
 
       {selected ? (
         <Editor
-          post={selected}
+          page={selected}
           navLabel={NAV_LABELS[nav]}
           nickname={user.nickname}
           focusTitle={focusId === selected.id}
-          onPatch={(patch) => updatePost(selected.id, patch)}
-          onToggleFavorite={() => toggleFavorite(selected.id)}
-          onTrash={() => {
-            trashPost(selected.id)
-            setSelectedId(null)
-          }}
-          onRestore={() => {
-            restorePost(selected.id)
-            setNav('all')
-          }}
-          onDeleteForever={() => handleDeleteForever(selected.id)}
+          saveStatus={saveStatus}
+          onPatch={(patch) => updatePage(selected.id, patch)}
+          onDelete={() => handleDelete(selected.id)}
         />
       ) : (
         <section className="detail">
@@ -221,7 +179,7 @@ export default function WorkspacePage() {
                 <br />
                 무엇을 기록할까요?
               </h2>
-              <p>왼쪽 글을 고르거나 &lsquo;/page&rsquo;로 새 글을 시작하세요.</p>
+              <p>왼쪽 페이지를 고르거나 &lsquo;/page&rsquo;로 새 페이지를 시작하세요.</p>
               <div className="empty-chips">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} className="chip" onClick={() => handleCreate(s)}>

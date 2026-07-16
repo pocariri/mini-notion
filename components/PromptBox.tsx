@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ArrowUp, CheckSquare, FileText, Heading1 } from 'lucide-react'
 
 const SLASH_ITEMS = [
-  { key: 'page', label: 'page — 새 글', icon: FileText, enabled: true },
+  { key: 'page', label: 'page — 새 페이지', icon: FileText, enabled: true },
   { key: 'todo', label: '할 일 목록', icon: CheckSquare, enabled: false },
   { key: 'heading', label: '제목', icon: Heading1, enabled: false },
 ] as const
@@ -53,7 +53,7 @@ export default function PromptBox({ onCreate }: Props) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="'/page' 입력해 새 글…"
+          placeholder="'/page' 입력해 새 페이지…"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -71,7 +71,7 @@ export default function PromptBox({ onCreate }: Props) {
           className="send"
           onClick={submit}
           disabled={isSlash ? highlighted === null : value.trim() === ''}
-          aria-label="새 글 만들기"
+          aria-label="새 페이지 만들기"
         >
           <ArrowUp size={16} />
         </button>

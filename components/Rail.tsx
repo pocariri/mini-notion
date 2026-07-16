@@ -1,24 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { Clock, FileText, Search, Settings, Star, Trash2 } from 'lucide-react'
+import { FileText, Search, Settings } from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import type { User } from '@/lib/store'
 
-export type NavKey = 'all' | 'favorites' | 'recent' | 'trash'
+// 저장 구조에 즐겨찾기·삭제 표시·수정 시각을 담을 자리가 없어 관련 내비가 모두 사라졌다.
+// '최근 항목'은 수정 시각 정렬이 없어지면 '전체'와 같은 목록이 되므로 함께 제거했다.
+export type NavKey = 'all'
 
 export const NAV_LABELS: Record<NavKey, string> = {
-  all: '전체 글',
-  favorites: '즐겨찾기',
-  recent: '최근 항목',
-  trash: '휴지통',
+  all: '전체 페이지',
 }
 
 const NAV_ICONS = {
   all: FileText,
-  favorites: Star,
-  recent: Clock,
-  trash: Trash2,
 } as const
 
 type Props = {

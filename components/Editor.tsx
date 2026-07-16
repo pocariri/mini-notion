@@ -1,36 +1,37 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { RotateCcw, Star, Trash2, X } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import CatCover from '@/components/CatCover'
 import { charCount, formatDate } from '@/lib/format'
-import type { Post } from '@/lib/store'
+import type { Page, SaveStatus } from '@/lib/store'
 
 type Props = {
-  post: Post
+  page: Page
   navLabel: string
   nickname: string
   focusTitle: boolean
-  onPatch: (patch: Partial<Pick<Post, 'title' | 'content'>>) => void
-  onToggleFavorite: () => void
-  onTrash: () => void
-  onRestore: () => void
-  onDeleteForever: () => void
+  saveStatus: SaveStatus
+  onPatch: (patch: Partial<Pick<Page, 'title' | 'content'>>) => void
+  onDelete: () => void
+}
+
+const SAVE_LABELS: Record<SaveStatus, string> = {
+  saved: '저장됨',
+  saving: '저장 중…',
+  error: '저장 안 됨',
 }
 
 export default function Editor({
-  post,
+  page,
   navLabel,
   nickname,
   focusTitle,
+  saveStatus,
   onPatch,
-  onToggleFavorite,
-  onTrash,
-  onRestore,
-  onDeleteForever,
+  onDelete,
 }: Props) {
   const contentRef = useRef<HTMLTextAreaElement>(null)
-  const inTrash = post.deletedAt !== null
 
   // Auto-grow the content textarea to fit its text.
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function Editor({
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
-  }, [post.id, post.content])
+  }, [page.id, page.content])
 
   return (
     <div className="detail">
@@ -46,63 +47,36 @@ export default function Editor({
         <div className="detail-toolbar">
           <span className="breadcrumb">
             {navLabel} ›{' '}
-            <span className="crumb-title">{post.title || '제목 없음'}</span>
-            {!inTrash && (
-              <span className="save-state">· 저장됨 {formatDate(post.updatedAt)}</span>
-            )}
+            <span className="crumb-title">{page.title || '제목 없음'}</span>
+            <span
+              className={`save-state${saveStatus === 'error' ? ' err' : ''}`}
+              role={saveStatus === 'error' ? 'alert' : undefined}
+            >
+              · {SAVE_LABELS[saveStatus]}
+            </span>
           </span>
-          {!inTrash && (
-            <div className="toolbar-actions">
-              <button
-                className={`chip${post.favorite ? ' on' : ''}`}
-                onClick={onToggleFavorite}
-              >
-                <Star
-                  size={14}
-                  fill={post.favorite ? 'currentColor' : 'none'}
-                />
-                즐겨찾기
-              </button>
-              <button className="btn btn-danger" onClick={onTrash}>
-                <Trash2 size={14} />
-                삭제
-              </button>
-            </div>
-          )}
+          <div className="toolbar-actions">
+            <button className="btn btn-danger" onClick={onDelete}>
+              <Trash2 size={14} />
+              삭제
+            </button>
+          </div>
         </div>
 
-        {inTrash && (
-          <div className="trash-banner">
-            <span>휴지통에 있는 글이에요. 복원하면 다시 편집할 수 있어요.</span>
-            <span className="trash-banner-actions">
-              <button className="btn" onClick={onRestore}>
-                <RotateCcw size={14} />
-                복원
-              </button>
-              <button className="btn btn-danger" onClick={onDeleteForever}>
-                <X size={14} />
-                영구 삭제
-              </button>
-            </span>
-          </div>
-        )}
-
-        <CatCover key={`cover-${post.id}`} />
+        <CatCover key={`cover-${page.id}`} />
 
         <input
-          key={post.id}
+          key={page.id}
           className="title-input"
           type="text"
           placeholder="제목 없음"
-          value={post.title}
-          autoFocus={focusTitle && !inTrash}
-          readOnly={inTrash}
+          value={page.title}
+          autoFocus={focusTitle}
           onChange={(e) => onPatch({ title: e.target.value })}
         />
 
         <div className="doc-meta">
-          작성 {formatDate(post.createdAt)} · 수정 {formatDate(post.updatedAt)} ·{' '}
-          {nickname}
+          작성 {formatDate(page.createdAt)} · {nickname}
         </div>
 
         <div className="doc-divider" />
@@ -111,12 +85,11 @@ export default function Editor({
           ref={contentRef}
           className="content-input"
           placeholder="여기에 내용을 입력하세요."
-          value={post.content}
-          readOnly={inTrash}
+          value={page.content}
           onChange={(e) => onPatch({ content: e.target.value })}
         />
 
-        <div className="content-counter">{charCount(post.content)}자</div>
+        <div className="content-counter">{charCount(page.content)}자</div>
       </div>
     </div>
   )
