@@ -53,11 +53,15 @@ type Store = {
   discardIfEmpty: (id: string) => Promise<void>
   flushPending: () => Promise<void>
   resetAll: () => Promise<void>
+  sidebarCollapsed: boolean
+  toggleSidebar: () => void
 }
 
 // 입력이 멈춘 뒤 저장까지의 지연. 타이핑을 끊지 않으면서 요청을 합칠 만큼 짧다.
 const SAVE_DEBOUNCE_MS = 800
 
+// 접힘 여부는 계정이 아니라 기기·브라우저 단위 설정이므로 uid를 붙이지 않는다.
+const SIDEBAR_KEY = 'mini-notion:sidebar-collapsed'
 // 가짜 로그인 시절의 사용자 키 — 실제 세션과 섞이지 않도록 초기화 시 제거한다.
 const LEGACY_USER_KEY = 'mini-notion:user'
 // 프로필이 Supabase(public.profile)로 이전되기 전의 로컬 오버레이 키 — 초기화 시 제거한다.
@@ -93,6 +97,14 @@ function switchDomTheme(next: Theme) {
   root.classList.remove('theme-switching')
 }
 
+function loadJSON<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : null
+  } catch {
+    return null
+  }
+}
 
 function userFromSession(session: Session | null): AuthUser | null {
   const su = session?.user
@@ -139,6 +151,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light')
   // 사용자가 토글로 직접 선택한 적이 있는지 — 선택 전에만 OS 변경을 따라간다(FR-015·016).
   const hasThemeChoice = useRef(false)
+  // 접힘 여부는 계정이 아니라 기기·브라우저 단위 설정이다(FR-017).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // 저장 대기열. 페이지별로 "아직 서버에 못 보낸 변경"과 그 타이머를 들고 있다.
   const pendingRef = useRef(new Map<string, Partial<Pick<Page, 'title' | 'content'>>>())
@@ -176,6 +190,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const key = localStorage.key(i)
       if (key?.startsWith(LEGACY_OVERLAY_PREFIX)) localStorage.removeItem(key)
     }
+    // true 외의 모든 값(부재·손상·비 boolean)은 펼침 기본값으로 정규화한다.
+    setSidebarCollapsed(loadJSON<unknown>(SIDEBAR_KEY) === true)
 
     let cancelled = false
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -258,6 +274,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     setTheme(next)
   }, [theme])
+
+  useEffect(() => {
+    if (!ready) return
+    localStorage.setItem(SIDEBAR_KEY, JSON.stringify(sidebarCollapsed))
+  }, [sidebarCollapsed, ready])
 
   const login = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -429,6 +450,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [removePage],
   )
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((c) => !c)
+  }, [])
+
   const resetAll = useCallback(async () => {
     if (uid && authUser) {
       // 로컬만 비우면 재로그인 시 되살아난다. 서버에서도 지운다.
@@ -478,6 +503,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       discardIfEmpty,
       flushPending,
       resetAll,
+      sidebarCollapsed,
+      toggleSidebar,
     }),
     [
       ready,
@@ -498,6 +525,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       discardIfEmpty,
       flushPending,
       resetAll,
+      sidebarCollapsed,
+      toggleSidebar,
     ],
   )
 

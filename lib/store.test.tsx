@@ -1142,3 +1142,109 @@ describe('테마 — 운영체제 설정 연동 (US3)', () => {
     }
   })
 })
+
+describe('사이드바 접힘 상태 (US1: 토글)', () => {
+  test('초기값은 펼침(false)이다 (S-1)', async () => {
+    const { result } = await renderStore()
+
+    expect(result.current.sidebarCollapsed).toBe(false)
+  })
+
+  test('toggleSidebar는 호출마다 접힘 상태를 반전한다 (S-2)', async () => {
+    const { result } = await renderStore()
+
+    act(() => {
+      result.current.toggleSidebar()
+    })
+    expect(result.current.sidebarCollapsed).toBe(true)
+
+    act(() => {
+      result.current.toggleSidebar()
+    })
+    expect(result.current.sidebarCollapsed).toBe(false)
+  })
+})
+
+describe('사이드바 접힘 상태 (US2: 영속화)', () => {
+  const SIDEBAR_KEY = 'mini-notion:sidebar-collapsed'
+
+  test('토글하면 localStorage에 JSON boolean으로 저장된다 (S-3)', async () => {
+    const { result } = await renderStore()
+
+    act(() => {
+      result.current.toggleSidebar()
+    })
+
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('true')
+
+    act(() => {
+      result.current.toggleSidebar()
+    })
+
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('false')
+  })
+
+  test("저장값이 'true'면 하이드레이션 후 접힘 상태다 (S-4)", async () => {
+    localStorage.setItem(SIDEBAR_KEY, 'true')
+
+    const { result } = await renderStore()
+
+    expect(result.current.sidebarCollapsed).toBe(true)
+  })
+
+  test.each([
+    ['비 boolean JSON 문자열', '"garbage"'],
+    ['숫자', '1'],
+    ['객체', '{}'],
+    ['비 JSON 원문', 'not-json{{'],
+  ])('손상된 저장값(%s)은 예외 없이 펼침 기본값이 된다 (S-5)', async (_label, raw) => {
+    localStorage.setItem(SIDEBAR_KEY, raw)
+
+    const { result } = await renderStore()
+
+    expect(result.current.sidebarCollapsed).toBe(false)
+  })
+
+  test('로그인·로그아웃(auth 세션 변화)이 접힘 상태를 바꾸지 않는다 (S-6, FR-017)', async () => {
+    localStorage.setItem(SIDEBAR_KEY, 'true')
+    const { result } = await renderStore()
+    expect(result.current.sidebarCollapsed).toBe(true)
+
+    act(() => {
+      authMock.fire('SIGNED_IN', googleSession)
+    })
+    expect(result.current.sidebarCollapsed).toBe(true)
+
+    await act(async () => {
+      await result.current.logout()
+    })
+    expect(result.current.sidebarCollapsed).toBe(true)
+    // 키에 계정 식별자가 붙지 않는다 — 브라우저 단위 설정(Clarification Q1)
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('true')
+  })
+
+  test('하이드레이션(ready) 전에는 저장값을 덮어쓰지 않는다 (S-7)', async () => {
+    localStorage.setItem(SIDEBAR_KEY, 'true')
+
+    const { result } = await renderStore()
+
+    // ready까지 기다린 뒤에도 저장값이 기본값 false로 클로버되지 않고 남아 있어야 한다.
+    expect(result.current.sidebarCollapsed).toBe(true)
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('true')
+  })
+
+  test('resetAll은 접힘 상태 키를 삭제하지 않는다 (S-8)', async () => {
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    act(() => {
+      result.current.toggleSidebar()
+    })
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('true')
+
+    await act(async () => {
+      await result.current.resetAll()
+    })
+
+    expect(localStorage.getItem(SIDEBAR_KEY)).toBe('true')
+  })
+})

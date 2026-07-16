@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ImagePlus, LogOut, UserRound, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ImagePlus,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  UserRound,
+  X,
+} from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import ThemeToggle from '@/components/ThemeToggle'
 import { useStore } from '@/lib/store'
@@ -14,7 +22,8 @@ const MAX_NICKNAME = 20
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 export default function MePage() {
-  const { ready, user, updateUser, logout, resetAll } = useStore()
+  const { ready, user, updateUser, logout, resetAll, sidebarCollapsed, toggleSidebar } =
+    useStore()
   const router = useRouter()
 
   const [tab, setTab] = useState<Tab>('profile')
@@ -91,35 +100,54 @@ export default function MePage() {
 
   return (
     <main className="workspace">
-      <aside className="rail">
+      <aside className={sidebarCollapsed ? 'rail collapsed' : 'rail'}>
         <div className="brand">
           <span className="brand-tile">m</span>
           <span className="brand-name">mini notion</span>
+          <button
+            type="button"
+            className="rail-toggle"
+            aria-label="사이드바 접기/펼치기"
+            aria-expanded={!sidebarCollapsed}
+            data-tip="사이드바 접기/펼치기"
+            onClick={toggleSidebar}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+          </button>
         </div>
 
         <div className="section-label">설정</div>
         <button
           className={`navitem${tab === 'profile' ? ' active' : ''}`}
+          aria-label="프로필"
+          data-tip="프로필"
           onClick={() => setTab('profile')}
         >
           <UserRound size={15} />
-          프로필
+          <span className="navitem-label">프로필</span>
         </button>
         <button
           className={`navitem${tab === 'account' ? ' active' : ''}`}
+          aria-label="계정"
+          data-tip="계정"
           onClick={() => setTab('account')}
         >
           <LogOut size={15} />
-          계정
+          <span className="navitem-label">계정</span>
         </button>
 
         <div className="rail-spacer" />
 
         <ThemeToggle />
 
-        <Link href="/workspace" className="navitem">
+        <Link
+          href="/workspace"
+          className="navitem"
+          aria-label="업무로 돌아가기"
+          data-tip="업무로 돌아가기"
+        >
           <ArrowLeft size={15} />
-          업무로 돌아가기
+          <span className="navitem-label">업무로 돌아가기</span>
         </Link>
       </aside>
 

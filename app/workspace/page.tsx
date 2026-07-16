@@ -33,6 +33,8 @@ export default function WorkspacePage() {
     deletePage,
     discardIfEmpty,
     flushPending,
+    sidebarCollapsed,
+    toggleSidebar,
   } = useStore()
   const router = useRouter()
 
@@ -98,6 +100,8 @@ export default function WorkspacePage() {
         search={search}
         onNav={(key) => setNav(key)}
         onSearch={setSearch}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
       />
 
       <section className="listpane">

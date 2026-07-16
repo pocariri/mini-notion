@@ -43,6 +43,8 @@ Thumbs.db
 # Agent tooling
 # Personal, per-machine settings — must not be shared.
 .claude/settings.local.json
+# Isolated worktree checkouts — each is a full working copy of this repo.
+.claude/worktrees/
 # Session scratch from the superpowers workflow.
 .superpowers/
 # Third-party skills installed by `npx skills add`. Restorable from the

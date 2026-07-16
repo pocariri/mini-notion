@@ -11,7 +11,7 @@
 **제품 한 줄 정의**: "mini notion — 개인 업무를, 내 방식대로." 구글 로그인(Supabase Auth) 후 글(페이지)을 만들고·수정하고·정리·삭제하는, 유료 구독 없는 1인용 미니 노션.
 (근거: `app/layout.tsx:14` `title: 'mini notion — 개인 업무를, 내 방식대로'`, `app/login/page.tsx:31-32`, `02-prd.md:1-5`)
 
-**이 문서의 목적/범위**: 코드가 사라져도 이 문서만으로 동일한 UI를 재현할 수 있도록, 디자인 토큰 92개·컴포넌트 13개·화면 5개·상태/변형/모션을 무손실로 보존한다. 범위는 **디자인/구현에 드러난 시각·인터랙션 시스템**이며, 서버/배포 아키텍처는 다루지 않는다.
+**이 문서의 목적/범위**: 코드가 사라져도 이 문서만으로 동일한 UI를 재현할 수 있도록, 디자인 토큰 102개·컴포넌트 13개·화면 5개·상태/변형/모션을 무손실로 보존한다. 범위는 **디자인/구현에 드러난 시각·인터랙션 시스템**이며, 서버/배포 아키텍처는 다루지 않는다.
 
 **근거 소스 목록**:
 
@@ -54,7 +54,7 @@ hairline borders, soft radii, whisper shadows.
 
 ## 3. 디자인 토큰 (Design Tokens)
 
-`:root`의 CSS 변수 **총 100개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. 라이트 값은 `:root`, 다크 오버라이드는 `[data-theme='dark']` 블록(§3.10). (근거: `app/globals.css`)
+`:root`의 CSS 변수 **총 102개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. 라이트 값은 `:root`, 다크 오버라이드는 `[data-theme='dark']` 블록(§3.10). (근거: `app/globals.css`)
 
 ### 3.1 Neutral scale (16개)
 
@@ -178,7 +178,7 @@ hairline borders, soft radii, whisper shadows.
 | `--ls-snug` | `-0.01em` | -0.01em | 브랜드명 자간 |
 | `--ls-wide` | `0.04em` | 0.04em | 섹션 라벨·뱃지 자간(대문자풍 라벨) |
 
-### 3.9 Radius / elevation / motion (18개) — `app/globals.css:99-117`
+### 3.9 Radius / elevation / motion / layout (20개) — `app/globals.css:99-121`
 
 | 토큰명 | 값(원문) | 해석 | 용도/의미 |
 |---|---|---|---|
@@ -197,11 +197,13 @@ hairline borders, soft radii, whisper shadows.
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0.1, 1)` | 표준 이징 | 대부분 트랜지션 |
 | `--ease-out` | `cubic-bezier(0.16, 1, 0.3, 1)` | 감속 이징 | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-fast` | `120ms` | 120ms | 배경·보더·색 전환 기본 |
-| `--dur-base` | `180ms` | 180ms | (정의됨, 직접 사용처 확인 불가) |
+| `--dur-base` | `180ms` | 180ms | 레일 접기/펼치기 폭 전환(`.rail`, §5.4) |
 | `--dur-slow` | `260ms` | 260ms | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-shimmer` | `1400ms` | 1400ms | 스켈레톤 pulse 주기 — 커버(`.cover-skeleton`, §5.14)와 목록(`.listrow-skeleton span`, §5.7)이 같은 `cover-pulse` 키프레임·같은 주기를 공유 |
+| `--rail-width` | `260px` | 260px | 좌측 레일 펼침 폭. ≤1024px에서 `220px`로 재정의(§5.13) |
+| `--rail-width-collapsed` | `56px` | 56px | 좌측 레일 접힘 폭(아이콘 전용, §5.4 접힘 상태) |
 
-> **토큰 합계 검증**: Neutral 16 + Accent 8 + Semantic 8 + Surfaces 8 + Text 7 + Borders 3 + Accent roles 9 + Typography 23 + Radius/elevation/motion 18 = **100개** (코드 `:root` 실측치 100과 일치. 다크모드 기능에서 8개 추가 — 원시 2: `--gray-750`·`--gray-850`, 시맨틱 6: `--surface-disabled`·`--text-on-inverse`·`--selection-bg`·`--avatar-bg`·`--avatar-text`·`--danger-soft`).
+> **토큰 합계 검증**: Neutral 16 + Accent 8 + Semantic 8 + Surfaces 8 + Text 7 + Borders 3 + Accent roles 9 + Typography 23 + Radius/elevation/motion/layout 20 = **102개** (코드 `:root` 실측치 102와 일치. 다크모드 기능에서 8개 추가 — 원시 2: `--gray-750`·`--gray-850`, 시맨틱 6: `--surface-disabled`·`--text-on-inverse`·`--selection-bg`·`--avatar-bg`·`--avatar-text`·`--danger-soft`. 사이드바 접힘 기능에서 layout 2개 추가).
 
 ### 3.10 다크 테마 오버라이드 — `[data-theme='dark']`
 
@@ -344,15 +346,18 @@ body {
 - **사용된 size**: 레일 푸터 30(`Rail.tsx:67`), 마이페이지 프로필 78(`me/page.tsx:129`).
 - **상태**: 별도 hover/focus 없음(정적).
 
-### 5.4 Sidebar rail — `app/globals.css:274-424` · `components/Rail.tsx`
+### 5.4 Sidebar rail — `app/globals.css:342-492` · `components/Rail.tsx`
 
-- **목적/역할**: 좌측 3-pane의 1번째 pane. 브랜드·검색·내비게이션·유저 푸터. 대응 와이어프레임: 1a.
-- **해부(구조 계층)**: `.rail` → `.brand`(`.brand-tile` + `.brand-name`) → `.rail-search`(아이콘 + input) → `.section-label` → `.navitem` × N(아이콘 + 라벨 + `.count`) → `.rail-spacer` → `ThemeToggle`(§5.15) → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
+- **목적/역할**: 좌측 3-pane의 1번째 pane. 브랜드·검색·내비게이션·유저 푸터. 접기/펼치기 토글로 아이콘 전용 좁은 레일(56px)로 축소 가능. 대응 와이어프레임: 1a.
+- **해부(구조 계층)**: `.rail`(+ 접힘 시 `.collapsed`) → `.brand`(`.brand-tile` + `.brand-name` + `.rail-toggle`) → `.rail-search`(아이콘 + input, 접힘 시 `.rail-search-button`으로 대체) → `.section-label` → `.navitem` × N(아이콘 + `.navitem-label` + `.count`) → `.rail-spacer` → `ThemeToggle`(§5.15) → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
 - **핵심 수치/토큰**:
 
 | 요소 | 주요 값 |
 |---|---|
-| `.rail` | `width:260px`, `flex:none`, `flex-direction:column`, `height:100%`, `padding:16px 12px 14px`, `background:--surface-sidebar`(#f7f7f5), `border-right:1px solid --border-subtle`(#e9e9e6) |
+| `.rail` | `width:var(--rail-width)`(260px), `flex:none`, `flex-direction:column`, `height:100%`, `padding:16px 12px 14px`, `background:--surface-sidebar`(#f7f7f5), `border-right:1px solid --border-subtle`(#e9e9e6), `transition:width --dur-base --ease-standard` |
+| `.rail.collapsed` | `width:var(--rail-width-collapsed)`(56px). 텍스트 요소(`.brand-name`·`.section-label`·`.navitem-label`·`.count`·`.rail-username`·`.gear`·`.rail-search`) `display:none`, 내비·푸터 아이콘 중앙 정렬, `.brand` 세로 스택 |
+| `.rail-toggle` | `.brand` 우측(`margin-left:auto`, 접힘 시 0), `padding:5px`, `border-radius:--radius-md`, 투명 배경, `color:--text-tertiary`. 아이콘 Lucide `PanelLeftClose`(펼침)/`PanelLeftOpen`(접힘) size 15 |
+| `.rail-search-button` | 접힘 상태에서 `.rail-search` 대신 렌더. `padding:7px`, `border:1px solid --border-default`, `border-radius:--radius-md`, `background:--surface-card`, `color:--text-tertiary` |
 | `.brand` | `gap:9px`, `padding:2px 6px 16px` |
 | `.brand-tile` | `26×26px`, `border-radius:--radius-md`, `background:--surface-inverse`(#1a1a17), `color:#fff`, `font-size:13px`, `font-weight:--fw-bold` |
 | `.brand-name` | `font-size:--text-lg`(16px), `font-weight:--fw-semibold`, `letter-spacing:--ls-snug`(-0.01em) |
@@ -373,10 +378,15 @@ body {
 | 내비 active | `.navitem.active` | `background:--accent-soft`(#f2f1fd), `color:--text-accent`(#5b4fdb) |
 | active 카운트 | `.navitem.active .count` | `color:--text-accent` |
 | 푸터 hover | `.rail-footer:hover .rail-username` | `color:--text-accent` |
+| 토글 hover | `.rail-toggle:hover` | `background:--surface-hover`, `color:--text-secondary` |
+| 접힘 검색 hover | `.rail-search-button:hover` | `border-color:--accent`, `color:--text-secondary` |
+| 접힘 툴팁 | `.rail.collapsed [data-tip]:hover::after` / `:focus-visible::after` | `content:attr(data-tip)` — 레일 우측 10px, `background:--surface-inverse`+`#fff`, `--radius-sm`, `--text-2xs`, `--shadow-md`. `title` 속성은 키보드 포커스에 반응하지 않아 의사요소로 구현 |
+| 모션 축소 | `@media (prefers-reduced-motion: reduce) .rail` | `transition:none` — 폭 전환 즉시 적용 |
 
-- **React(`components/Rail.tsx`)**: `NavKey = 'all'` — 내비는 **1개뿐**이다. `NAV_LABELS = {all:'전체 페이지'}`(`Rail.tsx:12-14`), `NAV_ICONS = {all:FileText}`(`Rail.tsx:16-18`, Lucide, size 15). 즐겨찾기·최근 항목·휴지통 내비는 해당 기능이 사라지며 함께 제거됐고(`Rail.tsx:8-9` 주석), 특히 '최근 항목'은 수정 시각 정렬이 없어지면 '전체 페이지'와 같은 목록이 되어 남길 이유가 없었다. 목록 렌더는 `Object.keys(NAV_LABELS)` 순회 구조를 유지해 항목이 늘면 그대로 확장된다. 검색 아이콘 `Search size={14}`. 푸터는 `/me`로 가는 `<Link>`, `title="마이 페이지"`, Avatar size 30(`Rail.tsx:67`), `Settings size={15}`.
+- **React(`components/Rail.tsx`)**: `NavKey = 'all'` — 내비는 **1개뿐**이다. `NAV_LABELS = {all:'전체 페이지'}`, `NAV_ICONS = {all:FileText}`(Lucide, size 15). 즐겨찾기·최근 항목·휴지통 내비는 해당 기능이 사라지며 함께 제거됐고, 특히 '최근 항목'은 수정 시각 정렬이 없어지면 '전체 페이지'와 같은 목록이 되어 남길 이유가 없었다. 목록 렌더는 `Object.keys(NAV_LABELS)` 순회 구조를 유지해 항목이 늘면 그대로 확장된다. 검색 아이콘 `Search size={14}`. 푸터는 `/me`로 가는 `<Link>`, `title="마이 페이지"`, Avatar size 30, `Settings size={15}`.
+- **접기/펼치기(React)**: Rail은 상태를 소유하지 않는 presentational 컴포넌트 — `collapsed: boolean` + `onToggleCollapse: () => void` prop으로 제어(값의 소유자는 `lib/store.tsx`의 `sidebarCollapsed`/`toggleSidebar`, localStorage `mini-notion:sidebar-collapsed`에 기기 단위 영속). 토글 버튼은 레일의 첫 버튼이며 고정 `aria-label="사이드바 접기/펼치기"` + `aria-expanded`로 상태를 노출. 내비 버튼은 상시 `aria-label`(라벨 텍스트가 접힘 시 `display:none`이므로)과 `data-tip`(카운트 있으면 `"전체 페이지 (3)"` 형식)을 가진다. 접힘 상태에서 `.rail-search-button` 클릭 → 펼침 + 검색 input 자동 포커스(펼침은 그대로 저장됨). `/me`의 설정 레일(인라인 `aside.rail`, `app/me/page.tsx`)도 동일한 store 상태·토글·`data-tip` 규약을 따른다.
 
-### 5.5 Workspace layout — `app/globals.css:426-442`
+### 5.5 Workspace layout — `app/globals.css:494-510`
 
 - **목적/역할**: 업무 페이지 3-pane 레이아웃 컨테이너. 대응 와이어프레임: 1a+1b. React: `app/workspace/page.tsx`(`<main className="workspace">`).
 - **해부**: `.workspace`(flex 컨테이너) → `.rail`(260px) + `.listpane`(320px) + `.detail`(flex:1).
@@ -453,7 +463,7 @@ body {
 | 모션 축소 | `@media (prefers-reduced-motion: reduce)` → `.listrow-skeleton span` | `animation:none`(정적 유지, `app/globals.css:712-716`) |
 
 - **트랜지션**: `border-color`, `background`, `box-shadow` × `--dur-fast` `--ease-standard`.
-- **스켈레톤 pulse**: `.listrow-skeleton span`은 커버 스켈레톤이 쓰는 `cover-pulse` 키프레임(`app/globals.css:804-812`)과 `--dur-shimmer`(1400ms)를 **그대로 재사용**한다 — 로딩 표현을 한 벌만 유지하기 위함이며, 새 키프레임·새 토큰을 만들지 않는다. 회전 스피너는 이 시스템 어디에도 없다.
+- **스켈레톤 pulse**: `.listrow-skeleton span`은 커버 스켈레톤이 쓰는 `cover-pulse` 키프레임(`app/globals.css:971-979`)과 `--dur-shimmer`(1400ms)를 **그대로 재사용**한다 — 로딩 표현을 한 벌만 유지하기 위함이며, 새 키프레임·새 토큰을 만들지 않는다. 회전 스피너는 이 시스템 어디에도 없다.
 - **React 표시 규칙(`app/workspace/page.tsx:119-157`)**: `pagesStatus`가 유일한 분기 기준이다.
   - `loading` → `[0,1,2].map`으로 `.listrow-skeleton` **3개** 고정 렌더, 각각 `aria-hidden="true"`(스크린리더에 자리표시를 읽히지 않는다).
   - `error` → `.list-error` 하나, `role="alert"`, 문구 "페이지를 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요.".
@@ -564,7 +574,7 @@ body {
 - **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid || saving}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출.
 - **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`, `me/page.tsx:168-170`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm('모든 페이지와 계정 정보를 삭제할까요? 되돌릴 수 없어요.', me/page.tsx:84`) 후 `resetAll()`(서버의 페이지 행 삭제 + 프로필 행을 Google 기본값으로 되돌리고 signOut, §8) → `/login`.
 
-### 5.13 Responsive (light) — `app/globals.css:1145-1158`
+### 5.13 Responsive (light) — `app/globals.css:1317-1330`
 
 - **목적/역할**: 좁은 화면(≤1024px)에서 3-pane 폭 축소. "(light)"는 가벼운 조정만 한다는 의도.
 - **브레이크포인트**: `@media (max-width: 1024px)`.
@@ -613,10 +623,10 @@ body {
 
 ### 6.2 `/workspace` 3-pane (와이어프레임 1a + 1b·1f·1g) — `app/workspace/page.tsx`
 
-- **그리드/영역**: `flex` 3-pane — 레일(260px) · 리스트페인(320px) · 상세(flex:1). 높이 `100dvh`, 컨테이너 `overflow:hidden`, 각 pane 개별 스크롤.
-- **좌측 레일(1a)**: 브랜드·검색·내비(**'전체 페이지' 1개**, 카운트 배지)·유저 푸터. 카운트는 `{ all: pages.length }`(`workspace/page.tsx:49`).
+- **그리드/영역**: `flex` 3-pane — 레일(`--rail-width` 260px, 접힘 시 `--rail-width-collapsed` 56px) · 리스트페인(320px) · 상세(flex:1). 높이 `100dvh`, 컨테이너 `overflow:hidden`, 각 pane 개별 스크롤. 레일이 접히면 확보 폭은 flex 자연 동작으로 상세가 가져간다.
+- **좌측 레일(1a)**: 브랜드·검색·내비(**'전체 페이지' 1개**, 카운트 배지)·유저 푸터 + 접기/펼치기 토글(§5.4 접힘 상태). 카운트는 `{ all: pages.length }`. 접힘 상태는 localStorage에 저장되어 새로고침·화면 이동 후에도 유지.
 - **페이지 목록(1b)**: 상단 프롬프트 박스 → (`.list-notice`) → 섹션 라벨(`검색 결과 · n` 또는 `{내비라벨} · n`) → `pagesStatus`별 목록 상태(§5.7). `filterPages`가 검색만으로 목록을 만든다(`workspace/page.tsx:14-20`):
-  - 기본: 스토어가 이미 `created_at` 내림차순으로 받아온 순서를 그대로 쓴다(클라이언트 재정렬 없음, `store.tsx:194`). 내비가 하나뿐이라 nav 분기가 없고, 개수 제한(slice)도 없다.
+  - 기본: 스토어가 이미 `created_at` 내림차순으로 받아온 순서를 그대로 쓴다(클라이언트 재정렬 없음). 내비가 하나뿐이라 nav 분기가 없고, 개수 제한(slice)도 없다.
   - 검색어(`q`)는 제목/내용 소문자 포함 필터.
   - 섹션 라벨의 카운트는 로딩 중에도 렌더되지만, 이때 `pages`는 아직 빈 배열이라 `· 0`으로 보인다.
 - **상세(1f·1g)**: 선택된 페이지가 있으면 `<Editor>`(제목 위에 랜덤 고양이 커버, §5.14), 없으면 빈 상태(커버 없음).
@@ -674,9 +684,9 @@ body {
 
 **호버/포커스 피드백**: 인터랙티브 표면은 hover 시 `--surface-hover`, 입력 컨테이너는 `:focus-within`에서 `--accent` 보더 + `--shadow-focus`(3px, #6a5df0 40%).
 
-**스켈레톤 pulse** (`cover-pulse`, `app/globals.css:804-812`): 로딩 표현은 이 키프레임 **한 벌**뿐이며 두 곳이 공유한다 — 커버(`.cover-skeleton`, §5.14)와 목록(`.listrow-skeleton span`, §5.7). `--gray-100↔--gray-150` 배경을 `--dur-shimmer`(1400ms) 주기로 교차한다(스피너 금지). `prefers-reduced-motion: reduce`에서는 둘 다 애니메이션을 끄고 정적으로 표시한다(`app/globals.css:712-716, 814-818`).
+**스켈레톤 pulse** (`cover-pulse`, `app/globals.css:971-979`): 로딩 표현은 이 키프레임 **한 벌**뿐이며 두 곳이 공유한다 — 커버(`.cover-skeleton`, §5.14)와 목록(`.listrow-skeleton span`, §5.7). `--gray-100↔--gray-150` 배경을 `--dur-shimmer`(1400ms) 주기로 교차한다(스피너 금지). `prefers-reduced-motion: reduce`에서는 둘 다 애니메이션을 끄고 정적으로 표시한다(`app/globals.css:879-883, 981-985`).
 
-**트랜지션 duration/ease 사용 규칙**: 코드에서 실제로 쓰이는 조합은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`) 하나로 통일. 전이 속성은 컴포넌트별로 `background`/`border-color`/`color`/`box-shadow` 조합. (`--dur-base`, `--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
+**트랜지션 duration/ease 사용 규칙**: 미세 상태 전환(`background`/`border-color`/`color`/`box-shadow`)은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`)로 통일. 큰 공간 이동(레일 접기/펼치기 `width`, §5.4)만 `--dur-base`(180ms) + `--ease-standard`를 쓰며, `prefers-reduced-motion: reduce`에서는 폭 전환을 생략한다. (`--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
 
 **테마 전환 (다크모드)**: 전환은 애니메이션 없이 즉시다. `toggleTheme`(`lib/store.tsx`)이 `<html>`에 `theme-switching` 클래스를 얹고 `data-theme`를 바꾼 뒤 강제 리플로우 후 즉시 제거 — 그 프레임 동안 `html.theme-switching *`의 `transition: none !important`가 걸려 배경·컨트롤이 어긋나지 않고 한 번에 바뀐다. hover 등 평소 120ms 트랜지션은 전환 후 그대로 동작. 모션 최소화 설정 여부와 무관하게 같은 동작(애니메이션 자체가 없으므로).
 
@@ -756,7 +766,7 @@ body {
 
 **실패·상태 알림의 보조 표기**: 사용자가 놓치면 안 되는 실패는 모두 `role="alert"`로 알린다 — `.list-error`(불러오기 실패), `.list-notice`(낙관적 갱신 롤백), `.save-state.err`(저장 실패, `saveStatus==='error'`일 때만 `role`이 붙는다), `.login-error`, `.save-error`. 반대로 `.listrow-skeleton`은 `aria-hidden="true"`로 자리표시가 읽히지 않게 하고, `.list-notice`의 닫기 버튼은 `aria-label="알림 닫기"`를 갖는다. 색(danger red)에만 의존하지 않도록 문구가 항상 함께 제공된다.
 
-**반응형(`Responsive (light)`, `app/globals.css:1145-1158`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 260→220px, 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
+**반응형(`Responsive (light)`, `app/globals.css:1317-1330`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 `--rail-width` 260→220px 재정의(접힘 폭 56px은 불변), 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
 
 ---
 
@@ -764,32 +774,32 @@ body {
 
 | 디자인 요소 | 소스 파일:라인 |
 |---|---|
-| 디자인 토큰 100개(`:root`) | `app/globals.css:7-128` |
-| 다크 오버라이드 | `app/globals.css:130-186`(`[data-theme='dark']`) |
+| 디자인 토큰 102개(`:root`) | `app/globals.css:7-132` |
+| 다크 오버라이드 | `app/globals.css:134-190`(`[data-theme='dark']`) |
 | 테마 토글 / 테마 로직 | `components/ThemeToggle.tsx` / `lib/theme.ts` · `lib/store.tsx` |
-| body 기본/타이포/selection | `app/globals.css:188-222` |
-| Buttons | `app/globals.css:224-296` |
-| Chip | `app/globals.css:298-317` |
-| Avatar(CSS/React) | `app/globals.css:319-336` / `components/Avatar.tsx` |
-| Sidebar rail(CSS/React) | `app/globals.css:338-488` / `components/Rail.tsx` |
-| Workspace layout | `app/globals.css:490-506` / `app/workspace/page.tsx` |
-| Prompt box + slash menu | `app/globals.css:508-631` / `components/PromptBox.tsx` |
-| Page list(로딩·실패·알림 포함) | `app/globals.css:633-780` / `app/workspace/page.tsx:103-157` |
-| Detail / editor | `app/globals.css:782-958` / `components/Editor.tsx` |
-| 랜덤 고양이 커버 | `app/globals.css:841-894` / `components/CatCover.tsx` |
-| Empty state | `app/globals.css:960-1006` / `app/workspace/page.tsx:172-191` |
-| Login | `app/globals.css:1008-1069` / `app/login/page.tsx` |
-| Splash | `app/globals.css:1071-1078` / `app/page.tsx` |
-| Settings (my page) | `app/globals.css:1080-1207` / `app/me/page.tsx` |
-| Responsive | `app/globals.css:1209-1222` |
+| body 기본/타이포/selection | `app/globals.css:192-226` |
+| Buttons | `app/globals.css:228-300` |
+| Chip | `app/globals.css:302-321` |
+| Avatar(CSS/React) | `app/globals.css:323-340` / `components/Avatar.tsx` |
+| Sidebar rail(CSS/React, 접힘 포함) | `app/globals.css:342-591` / `components/Rail.tsx` |
+| Workspace layout | `app/globals.css:593-609` / `app/workspace/page.tsx` |
+| Prompt box + slash menu | `app/globals.css:611-734` / `components/PromptBox.tsx` |
+| Page list(로딩·실패·알림 포함) | `app/globals.css:736-883` / `app/workspace/page.tsx` |
+| Detail / editor | `app/globals.css:885-1066` / `components/Editor.tsx` |
+| 랜덤 고양이 커버 | `app/globals.css:944-997` / `components/CatCover.tsx` |
+| Empty state | `app/globals.css:1068-1114` / `app/workspace/page.tsx` |
+| Login | `app/globals.css:1116-1177` / `app/login/page.tsx` |
+| Splash | `app/globals.css:1179-1186` / `app/page.tsx` |
+| Settings (my page) | `app/globals.css:1188-1315` / `app/me/page.tsx` |
+| Responsive | `app/globals.css:1317-1330` |
 | 폰트 로딩 | `app/layout.tsx:6-11` |
 | 전역 프레임/Provider | `app/layout.tsx:18-30` |
 | 상태·데이터 모델 | `lib/store.tsx` |
-| 목록 스켈레톤 / 실패 / 알림 | `app/globals.css:644-716` / `app/workspace/page.tsx:106-132` |
-| 저장 상태 표시 | `app/globals.css:759-768` / `components/Editor.tsx:19-23, 48-57` |
+| 목록 스켈레톤 / 실패 / 알림 | `app/globals.css:813-883` / `app/workspace/page.tsx` |
+| 저장 상태 표시 | `app/globals.css:926-935` / `components/Editor.tsx` |
 | 디바운스 저장·flush·빈 페이지 폐기 | `lib/store.tsx:56, 251-326, 364-371` |
 | 낙관적 생성/삭제 + 롤백 | `lib/store.tsx:274-300, 330-361` |
-| 스켈레톤 pulse 키프레임(공용) | `app/globals.css:804-812` |
+| 스켈레톤 pulse 키프레임(공용) | `app/globals.css:971-979` |
 | 상대 시간 포맷 | `lib/format.ts` |
 | Google 로고 SVG | `components/GoogleLogo.tsx` |
 | Nav 키/라벨/아이콘(1개) | `components/Rail.tsx:10-18` |
@@ -811,12 +821,12 @@ body {
 
 ## 자기 검증 체크리스트 (Self-Verification)
 
-- [x] `:root`의 CSS 변수 개수와 문서 토큰 개수가 **일치**(코드 실측 100개 = 문서 16+8+8+8+7+3+9+23+18 = 100개). 다크모드가 토큰 8개를 추가했고(§3.10), 참조를 잃은 토큰은 "사용처 없음"으로 표기했다(§3.3의 `--amber-500`, §12).
+- [x] `:root`의 CSS 변수 개수와 문서 토큰 개수가 **일치**(코드 실측 102개 = 문서 16+8+8+8+7+3+9+23+20 = 102개). 다크모드가 토큰 8개, 사이드바 접힘이 layout 2개를 추가했고(§3.9·§3.10), 참조를 잃은 토큰은 "사용처 없음"으로 표기했다(§3.3의 `--amber-500`, §12).
 - [x] `globals.css`의 컴포넌트 섹션 **13개** 모두 문서화(Buttons/Chip/Avatar/Sidebar rail/Workspace layout/Prompt box + slash menu/Page list/Detail·editor/Empty state/Login/Splash/Settings/Responsive).
 - [x] React 컴포넌트 7개(Avatar/Editor/PromptBox/GoogleLogo/Rail/CatCover/ThemeToggle) 모두 언급.
 - [x] 삭제된 기능(즐겨찾기·휴지통·수정 시각)의 잔재가 문서에 남아 있지 않음 — `.chip.on`·`.star`·`.trash-*` 스타일, `favorite`/`updatedAt`/`deletedAt` 필드, `favorites`/`recent`/`trash` 내비를 모두 걷어냈다. 참조를 잃은 `--amber-500`만 "사용처 없음"으로 남겼다.
 - [x] 목록 pane의 세 상태(`loading`/`error`/`ready`)와 저장 상태 세 값(`saved`/`saving`/`error`)이 각각 어떤 클래스·문구로 나타나는지 §5.7·§5.8에 표로 고정.
-- [x] 새로 문서화한 클래스가 실제 CSS에 존재함을 확인 — `.listrow-skeleton`/`.sk-title`/`.sk-snippet`/`.sk-meta`(`app/globals.css:745-780`), `.list-error`(710-715), `.list-notice`(718-740), `.save-state.err`(830-832).
+- [x] 새로 문서화한 클래스가 실제 CSS에 존재함을 확인 — `.listrow-skeleton`/`.sk-title`/`.sk-snippet`/`.sk-meta`(`app/globals.css:848-883`), `.list-error`(813-818), `.list-notice`(821-843), `.save-state.err`(933-935).
 - [x] 새 컴포넌트는 기존 토큰만 소비한다(`--radius-xs`가 `.listrow-skeleton span`으로 첫 사용처를 얻었고, `cover-pulse`·`--dur-shimmer`는 커버와 공유).
 - [x] 화면 5개(login/workspace/me/splash/layout) 모두 문서화.
 - [x] 별칭 토큰(`var(--…)`)이 최종 실제값까지 풀려 있음(Surfaces/Text/Borders/Accent roles 표의 "해석" 컬럼).
