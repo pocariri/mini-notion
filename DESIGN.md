@@ -170,7 +170,7 @@ hairline borders, soft radii, whisper shadows.
 | `--ls-snug` | `-0.01em` | -0.01em | 브랜드명 자간 |
 | `--ls-wide` | `0.04em` | 0.04em | 섹션 라벨·뱃지 자간(대문자풍 라벨) |
 
-### 3.9 Radius / elevation / motion (18개) — `app/globals.css:99-117`
+### 3.9 Radius / elevation / motion / layout (20개) — `app/globals.css:99-121`
 
 | 토큰명 | 값(원문) | 해석 | 용도/의미 |
 |---|---|---|---|
@@ -189,11 +189,13 @@ hairline borders, soft radii, whisper shadows.
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0.1, 1)` | 표준 이징 | 대부분 트랜지션 |
 | `--ease-out` | `cubic-bezier(0.16, 1, 0.3, 1)` | 감속 이징 | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-fast` | `120ms` | 120ms | 배경·보더·색 전환 기본 |
-| `--dur-base` | `180ms` | 180ms | (정의됨, 직접 사용처 확인 불가) |
+| `--dur-base` | `180ms` | 180ms | 레일 접기/펼치기 폭 전환(`.rail`, §5.4) |
 | `--dur-slow` | `260ms` | 260ms | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-shimmer` | `1400ms` | 1400ms | 커버 스켈레톤 pulse 주기(`.cover-skeleton`, §5.14) |
+| `--rail-width` | `260px` | 260px | 좌측 레일 펼침 폭. ≤1024px에서 `220px`로 재정의(§5.13) |
+| `--rail-width-collapsed` | `56px` | 56px | 좌측 레일 접힘 폭(아이콘 전용, §5.4 접힘 상태) |
 
-> **토큰 합계 검증**: Neutral 14 + Accent 8 + Semantic 8 + Surfaces 7 + Text 6 + Borders 3 + Accent roles 5 + Typography 23 + Radius/elevation/motion 18 = **92개** (코드 `:root` 실측치 92와 일치).
+> **토큰 합계 검증**: Neutral 14 + Accent 8 + Semantic 8 + Surfaces 7 + Text 6 + Borders 3 + Accent roles 5 + Typography 23 + Radius/elevation/motion/layout 20 = **94개** (코드 `:root` 실측치 94와 일치).
 
 ---
 
@@ -307,15 +309,18 @@ body {
 - **사용된 size**: 레일 푸터 30(`Rail.tsx:71`), 마이페이지 프로필 78(`me/page.tsx:119`).
 - **상태**: 별도 hover/focus 없음(정적).
 
-### 5.4 Sidebar rail — `app/globals.css:279-429` · `components/Rail.tsx`
+### 5.4 Sidebar rail — `app/globals.css:284-533` · `components/Rail.tsx`
 
-- **목적/역할**: 좌측 3-pane의 1번째 pane. 브랜드·검색·내비게이션·유저 푸터. 대응 와이어프레임: 1a.
-- **해부(구조 계층)**: `.rail` → `.brand`(`.brand-tile` + `.brand-name`) → `.rail-search`(아이콘 + input) → `.section-label` → `.navitem` × N(아이콘 + 라벨 + `.count`) → `.rail-spacer` → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
+- **목적/역할**: 좌측 3-pane의 1번째 pane. 브랜드·검색·내비게이션·유저 푸터. 접기/펼치기 토글로 아이콘 전용 좁은 레일(56px)로 축소 가능. 대응 와이어프레임: 1a.
+- **해부(구조 계층)**: `.rail`(+ 접힘 시 `.collapsed`) → `.brand`(`.brand-tile` + `.brand-name` + `.rail-toggle`) → `.rail-search`(아이콘 + input, 접힘 시 `.rail-search-button`으로 대체) → `.section-label` → `.navitem` × N(아이콘 + `.navitem-label` + `.count`) → `.rail-spacer` → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
 - **핵심 수치/토큰**:
 
 | 요소 | 주요 값 |
 |---|---|
-| `.rail` | `width:260px`, `flex:none`, `flex-direction:column`, `height:100%`, `padding:16px 12px 14px`, `background:--surface-sidebar`(#f7f7f5), `border-right:1px solid --border-subtle`(#e9e9e6) |
+| `.rail` | `width:var(--rail-width)`(260px), `flex:none`, `flex-direction:column`, `height:100%`, `padding:16px 12px 14px`, `background:--surface-sidebar`(#f7f7f5), `border-right:1px solid --border-subtle`(#e9e9e6), `transition:width --dur-base --ease-standard` |
+| `.rail.collapsed` | `width:var(--rail-width-collapsed)`(56px). 텍스트 요소(`.brand-name`·`.section-label`·`.navitem-label`·`.count`·`.rail-username`·`.gear`·`.rail-search`) `display:none`, 내비·푸터 아이콘 중앙 정렬, `.brand` 세로 스택 |
+| `.rail-toggle` | `.brand` 우측(`margin-left:auto`, 접힘 시 0), `padding:5px`, `border-radius:--radius-md`, 투명 배경, `color:--text-tertiary`. 아이콘 Lucide `PanelLeftClose`(펼침)/`PanelLeftOpen`(접힘) size 15 |
+| `.rail-search-button` | 접힘 상태에서 `.rail-search` 대신 렌더. `padding:7px`, `border:1px solid --border-default`, `border-radius:--radius-md`, `background:--surface-card`, `color:--text-tertiary` |
 | `.brand` | `gap:9px`, `padding:2px 6px 16px` |
 | `.brand-tile` | `26×26px`, `border-radius:--radius-md`, `background:--surface-inverse`(#1a1a17), `color:#fff`, `font-size:13px`, `font-weight:--fw-bold` |
 | `.brand-name` | `font-size:--text-lg`(16px), `font-weight:--fw-semibold`, `letter-spacing:--ls-snug`(-0.01em) |
@@ -336,10 +341,15 @@ body {
 | 내비 active | `.navitem.active` | `background:--accent-soft`(#f2f1fd), `color:--text-accent`(#5b4fdb) |
 | active 카운트 | `.navitem.active .count` | `color:--text-accent` |
 | 푸터 hover | `.rail-footer:hover .rail-username` | `color:--text-accent` |
+| 토글 hover | `.rail-toggle:hover` | `background:--surface-hover`, `color:--text-secondary` |
+| 접힘 검색 hover | `.rail-search-button:hover` | `border-color:--accent`, `color:--text-secondary` |
+| 접힘 툴팁 | `.rail.collapsed [data-tip]:hover::after` / `:focus-visible::after` | `content:attr(data-tip)` — 레일 우측 10px, `background:--surface-inverse`+`#fff`, `--radius-sm`, `--text-2xs`, `--shadow-md`. `title` 속성은 키보드 포커스에 반응하지 않아 의사요소로 구현 |
+| 모션 축소 | `@media (prefers-reduced-motion: reduce) .rail` | `transition:none` — 폭 전환 즉시 적용 |
 
-- **React(`components/Rail.tsx`)**: `NavKey = 'all' | 'favorites' | 'recent' | 'trash'`. `NAV_LABELS = {all:'전체 글', favorites:'즐겨찾기', recent:'최근 항목', trash:'휴지통'}`(`Rail.tsx:10-15`). `NAV_ICONS = {all:FileText, favorites:Star, recent:Clock, trash:Trash2}`(`Rail.tsx:17-22`, Lucide, size 15). 검색 아이콘 `Search size={14}`. 푸터는 `/me`로 가는 `<Link>`, `title="마이 페이지"`, Avatar size 30, `Settings size={15}`.
+- **React(`components/Rail.tsx`)**: `NavKey = 'all' | 'favorites' | 'recent' | 'trash'`. `NAV_LABELS = {all:'전체 글', favorites:'즐겨찾기', recent:'최근 항목', trash:'휴지통'}`. `NAV_ICONS = {all:FileText, favorites:Star, recent:Clock, trash:Trash2}`(Lucide, size 15). 검색 아이콘 `Search size={14}`. 푸터는 `/me`로 가는 `<Link>`, `title="마이 페이지"`, Avatar size 30, `Settings size={15}`.
+- **접기/펼치기(React)**: Rail은 상태를 소유하지 않는 presentational 컴포넌트 — `collapsed: boolean` + `onToggleCollapse: () => void` prop으로 제어(값의 소유자는 `lib/store.tsx`의 `sidebarCollapsed`/`toggleSidebar`, localStorage `mini-notion:sidebar-collapsed`에 기기 단위 영속). 토글 버튼은 레일의 첫 버튼이며 고정 `aria-label="사이드바 접기/펼치기"` + `aria-expanded`로 상태를 노출. 내비 버튼은 상시 `aria-label`(라벨 텍스트가 접힘 시 `display:none`이므로)과 `data-tip`(카운트 있으면 `"전체 글 (3)"` 형식)을 가진다. 접힘 상태에서 `.rail-search-button` 클릭 → 펼침 + 검색 input 자동 포커스(펼침은 그대로 저장됨). `/me`의 설정 레일(인라인 `aside.rail`, `app/me/page.tsx`)도 동일한 store 상태·토글·`data-tip` 규약을 따른다.
 
-### 5.5 Workspace layout — `app/globals.css:431-447`
+### 5.5 Workspace layout — `app/globals.css:535-551`
 
 - **목적/역할**: 업무 페이지 3-pane 레이아웃 컨테이너. 대응 와이어프레임: 1a+1b. React: `app/workspace/page.tsx`(`<main className="workspace">`).
 - **해부**: `.workspace`(flex 컨테이너) → `.rail`(260px) + `.listpane`(320px) + `.detail`(flex:1).
@@ -506,7 +516,7 @@ body {
 - **상태**: `.field:focus-within` → `border-color:--accent`, `box-shadow:--shadow-focus`. 저장 버튼은 `disabled={!dirty || !valid || saving}`이고 저장 중에는 라벨이 "저장 중…"으로 바뀐다(`app/me/page.tsx`). 저장 실패 시 `.save-error`(role="alert")로 "저장하지 못했어요. 잠시 후 다시 시도해 주세요."를 노출.
 - **React(`app/me/page.tsx`)**: 상수 `MAX_NICKNAME = 20`(`me/page.tsx:12`), `MAX_IMAGE_BYTES = 5 * 1024 * 1024`(5MB, `me/page.tsx:13`). 별명 input `maxLength={20}`, 카운터 표기 `#{nickname.length}/{MAX_NICKNAME}`(예: `#3/20`). 이미지 변경(`ImagePlus size={14}`)·제거(`X size={14}`, image 있을 때만), 힌트 "JPG · PNG · 5MB 이하". 계정 탭 뱃지 텍스트 "GOOGLE". 저장은 Supabase `public.profile` 행에 비동기 upsert(`lib/store.tsx`의 `updateUser`) — 성공 시 "저장되었습니다." 2초 노출, 실패 시 `.save-error` 문구 노출. 초기화는 `window.confirm` 후 `resetAll()`(프로필 행을 Google 기본값으로 되돌리고 signOut) → `/login`.
 
-### 5.13 Responsive (light) — `app/globals.css:1025-1038`
+### 5.13 Responsive (light) — `app/globals.css:1216-1229`
 
 - **목적/역할**: 좁은 화면(≤1024px)에서 3-pane 폭 축소. "(light)"는 가벼운 조정만 한다는 의도.
 - **브레이크포인트**: `@media (max-width: 1024px)`.
@@ -547,8 +557,8 @@ body {
 
 ### 6.2 `/workspace` 3-pane (와이어프레임 1a + 1b·1f·1g) — `app/workspace/page.tsx`
 
-- **그리드/영역**: `flex` 3-pane — 레일(260px) · 리스트페인(320px) · 상세(flex:1). 높이 `100dvh`, 컨테이너 `overflow:hidden`, 각 pane 개별 스크롤.
-- **좌측 레일(1a)**: 브랜드·검색·내비(전체 글/즐겨찾기/최근 항목/휴지통, 카운트 배지)·유저 푸터.
+- **그리드/영역**: `flex` 3-pane — 레일(`--rail-width` 260px, 접힘 시 `--rail-width-collapsed` 56px) · 리스트페인(320px) · 상세(flex:1). 높이 `100dvh`, 컨테이너 `overflow:hidden`, 각 pane 개별 스크롤. 레일이 접히면 확보 폭은 flex 자연 동작으로 상세가 가져간다.
+- **좌측 레일(1a)**: 브랜드·검색·내비(전체 글/즐겨찾기/최근 항목/휴지통, 카운트 배지)·유저 푸터 + 접기/펼치기 토글(§5.4 접힘 상태). 접힘 상태는 localStorage에 저장되어 새로고침·화면 이동 후에도 유지.
 - **글 목록(1b)**: 상단 프롬프트 박스 → 섹션 라벨(`검색 결과 · n` 또는 `{내비라벨} · n`) → 카드 목록. `filterPosts`가 nav·검색으로 목록을 만든다(`workspace/page.tsx:14-46`):
   - `favorites`: 미삭제 & favorite, `createdAt` 내림차순.
   - `recent`: 미삭제, `updatedAt` 내림차순, **상위 10개**.
@@ -601,7 +611,7 @@ body {
 
 **커버 스켈레톤 pulse** (`components/CatCover.tsx`, §5.14): 커버 로딩 동안 `.cover-skeleton`이 `cover-pulse` 키프레임으로 `--gray-100↔--gray-150` 배경을 `--dur-shimmer`(1400ms) 주기로 교차(스피너 금지). `prefers-reduced-motion: reduce`에서는 애니메이션을 끄고 정적 `--gray-100`으로 표시.
 
-**트랜지션 duration/ease 사용 규칙**: 코드에서 실제로 쓰이는 조합은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`) 하나로 통일. 전이 속성은 컴포넌트별로 `background`/`border-color`/`color`/`box-shadow` 조합. (`--dur-base`, `--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
+**트랜지션 duration/ease 사용 규칙**: 미세 상태 전환(`background`/`border-color`/`color`/`box-shadow`)은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`)로 통일. 큰 공간 이동(레일 접기/펼치기 `width`, §5.4)만 `--dur-base`(180ms) + `--ease-standard`를 쓰며, `prefers-reduced-motion: reduce`에서는 폭 전환을 생략한다. (`--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
 
 ---
 
@@ -663,7 +673,7 @@ body {
 
 **시맨틱/보조 표기**: `<html lang="ko">`(`layout.tsx:24`). Avatar `img alt` 동적 생성. 전송 버튼 `aria-label="새 글 만들기"`. GoogleLogo `aria-hidden="true"`. 레일 푸터 `title="마이 페이지"`. 휴지통 목록 액션은 `role="button" tabIndex={0}`(`workspace/page.tsx:162-187`).
 
-**반응형(`Responsive (light)`, `app/globals.css:1025-1038`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 260→220px, 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
+**반응형(`Responsive (light)`, `app/globals.css:1216-1229`)**: 단일 브레이크포인트 `max-width: 1024px`. 변화 = 레일 `--rail-width` 260→220px 재정의(접힘 폭 56px은 불변), 리스트페인 320→280px, 상세 여백 `22px 40px 80px`→`22px 24px 60px`. 로그인 카드는 `max-width:calc(100vw - 32px)`로 별도 대응. 그 외 모바일 전용 레이아웃 전환은 없음.
 
 ---
 
@@ -676,8 +686,8 @@ body {
 | Buttons | `app/globals.css:159-231` |
 | Chip | `app/globals.css:233-258` |
 | Avatar(CSS/React) | `app/globals.css:260-277` / `components/Avatar.tsx` |
-| Sidebar rail(CSS/React) | `app/globals.css:279-429` / `components/Rail.tsx` |
-| Workspace layout | `app/globals.css:431-447` / `app/workspace/page.tsx` |
+| Sidebar rail(CSS/React) | `app/globals.css:284-533` / `components/Rail.tsx` |
+| Workspace layout | `app/globals.css:535-551` / `app/workspace/page.tsx` |
 | Prompt box + slash menu | `app/globals.css:449-572` / `components/PromptBox.tsx` |
 | Post list | `app/globals.css:574-664` / `app/workspace/page.tsx:136-191` |
 | Detail / editor | `app/globals.css:666-785` / `components/Editor.tsx` |
@@ -686,7 +696,7 @@ body {
 | Login | `app/globals.css:835-890` / `app/login/page.tsx` |
 | Splash | `app/globals.css:892-899` / `app/page.tsx` |
 | Settings (my page) | `app/globals.css:901-1023` / `app/me/page.tsx` |
-| Responsive | `app/globals.css:1025-1038` |
+| Responsive | `app/globals.css:1216-1229` |
 | 폰트 로딩 | `app/layout.tsx:6-11` |
 | 전역 프레임/Provider | `app/layout.tsx:18-30` |
 | 상태·데이터 모델 | `lib/store.tsx` |

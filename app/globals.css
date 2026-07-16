@@ -115,6 +115,10 @@
   --dur-base: 180ms;
   --dur-slow: 260ms;
   --dur-shimmer: 1400ms;
+
+  /* Layout */
+  --rail-width: 260px;
+  --rail-width-collapsed: 56px;
 }
 
 * {
@@ -279,7 +283,7 @@ button.chip:hover {
 
 /* ---------- Sidebar rail ---------- */
 .rail {
-  width: 260px;
+  width: var(--rail-width);
   flex: none;
   display: flex;
   flex-direction: column;
@@ -287,6 +291,11 @@ button.chip:hover {
   padding: 16px 12px 14px;
   background: var(--surface-sidebar);
   border-right: 1px solid var(--border-subtle);
+  transition: width var(--dur-base) var(--ease-standard);
+}
+
+.rail.collapsed {
+  width: var(--rail-width-collapsed);
 }
 
 .brand {
@@ -314,6 +323,44 @@ button.chip:hover {
   font-size: var(--text-lg);
   font-weight: var(--fw-semibold);
   letter-spacing: var(--ls-snug);
+}
+
+.rail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 5px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+
+.rail-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.rail-search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  padding: 7px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.rail-search-button:hover {
+  border-color: var(--accent);
+  color: var(--text-secondary);
 }
 
 .rail-search {
@@ -427,6 +474,62 @@ button.chip:hover {
   margin-left: auto;
   flex: none;
   color: var(--text-tertiary);
+}
+
+/* 접힘 상태: 텍스트 요소를 감추고 아이콘만 중앙 정렬로 남긴다(FR-014). */
+.rail.collapsed .brand {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 16px;
+}
+
+.rail.collapsed .rail-toggle {
+  margin-left: 0;
+}
+
+.rail.collapsed .brand-name,
+.rail.collapsed .section-label,
+.rail.collapsed .navitem-label,
+.rail.collapsed .navitem .count,
+.rail.collapsed .rail-username,
+.rail.collapsed .rail-footer .gear {
+  display: none;
+}
+
+.rail.collapsed .navitem {
+  justify-content: center;
+  padding: 7px 0;
+}
+
+.rail.collapsed .rail-footer {
+  justify-content: center;
+  padding: 12px 0 0;
+}
+
+/* 접힘 상태 툴팁: 감춰진 라벨을 호버·키보드 포커스 시 보여준다(FR-014).
+   title 속성은 키보드 포커스에 반응하지 않아 의사요소로 구현한다. */
+.rail.collapsed [data-tip] {
+  position: relative;
+}
+
+.rail.collapsed [data-tip]:hover::after,
+.rail.collapsed [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inverse);
+  color: #fff;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
 }
 
 /* ---------- Workspace layout ---------- */
@@ -758,6 +861,11 @@ button.chip:hover {
 @media (prefers-reduced-motion: reduce) {
   .cover-skeleton {
     animation: none;
+  }
+
+  /* 접기/펼치기 폭 전환을 생략하고 결과 상태를 즉시 적용한다(FR-012). */
+  .rail {
+    transition: none;
   }
 }
 
@@ -1108,7 +1216,7 @@ button.chip:hover {
 /* ---------- Responsive (light) ---------- */
 @media (max-width: 1024px) {
   .rail {
-    width: 220px;
+    --rail-width: 220px;
   }
 
   .listpane {

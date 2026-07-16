@@ -43,9 +43,13 @@ type Store = {
   restorePost: (id: string) => void
   deletePostForever: (id: string) => void
   resetAll: () => Promise<void>
+  sidebarCollapsed: boolean
+  toggleSidebar: () => void
 }
 
 const POSTS_KEY = 'mini-notion:posts'
+// 접힘 여부는 계정이 아니라 기기·브라우저 단위 설정이므로 uid를 붙이지 않는다.
+const SIDEBAR_KEY = 'mini-notion:sidebar-collapsed'
 // 가짜 로그인 시절의 사용자 키 — 실제 세션과 섞이지 않도록 초기화 시 제거한다.
 const LEGACY_USER_KEY = 'mini-notion:user'
 // 프로필이 Supabase(public.profile)로 이전되기 전의 로컬 오버레이 키 — 초기화 시 제거한다.
@@ -137,6 +141,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
+  // 접힘 여부는 계정이 아니라 기기·브라우저 단위 설정이다(FR-017).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const hadStoredPosts = useRef(false)
 
   useEffect(() => {
@@ -147,6 +153,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     hadStoredPosts.current = localStorage.getItem(POSTS_KEY) !== null
     setPosts(loadJSON<Post[]>(POSTS_KEY) ?? [])
+    // true 외의 모든 값(부재·손상·비 boolean)은 펼침 기본값으로 정규화한다.
+    setSidebarCollapsed(loadJSON<unknown>(SIDEBAR_KEY) === true)
 
     let cancelled = false
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -196,6 +204,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!ready) return
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts))
   }, [posts, ready])
+
+  useEffect(() => {
+    if (!ready) return
+    localStorage.setItem(SIDEBAR_KEY, JSON.stringify(sidebarCollapsed))
+  }, [sidebarCollapsed, ready])
 
   const login = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -275,6 +288,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPosts((ps) => ps.filter((p) => p.id !== id))
   }, [])
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((c) => !c)
+  }, [])
+
   const resetAll = useCallback(async () => {
     setPosts([])
     localStorage.removeItem(POSTS_KEY)
@@ -317,6 +334,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restorePost,
       deletePostForever,
       resetAll,
+      sidebarCollapsed,
+      toggleSidebar,
     }),
     [
       ready,
@@ -332,6 +351,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restorePost,
       deletePostForever,
       resetAll,
+      sidebarCollapsed,
+      toggleSidebar,
     ],
   )
 
