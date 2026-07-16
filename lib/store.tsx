@@ -12,6 +12,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import { THEME_KEY, parseStoredTheme, type Theme } from './theme'
 
 export type User = {
   nickname: string
@@ -33,6 +34,8 @@ type Store = {
   ready: boolean
   user: User | null
   posts: Post[]
+  theme: Theme
+  toggleTheme: () => void
   login: () => Promise<{ error: string | null }>
   logout: () => Promise<void>
   updateUser: (patch: Partial<User>) => Promise<{ error: string | null }>
@@ -59,6 +62,16 @@ type Profile = { name: string | null; image: string | null }
 type AuthUser = { uid: string; base: User }
 
 const StoreContext = createContext<Store | null>(null)
+
+// 전환 프레임에만 트랜지션을 억제하며 <html data-theme>를 바꾼다(FR-003a).
+// 강제 리플로우로 억제 상태의 스타일 재계산을 확정한 뒤 즉시 해제한다.
+function switchDomTheme(next: Theme) {
+  const root = document.documentElement
+  root.classList.add('theme-switching')
+  root.dataset.theme = next
+  void root.offsetWidth
+  root.classList.remove('theme-switching')
+}
 
 function loadJSON<T>(key: string): T | null {
   try {
@@ -137,9 +150,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
+  // 유효 테마. 초기값은 레이아웃 인라인 스크립트가 첫 페인트 전에 설정한
+  // <html data-theme>에서 읽는다(SSR 중에는 document가 없어 클라이언트 효과에서 수행).
+  const [theme, setTheme] = useState<Theme>('light')
   const hadStoredPosts = useRef(false)
+  // 사용자가 토글로 직접 선택한 적이 있는지 — 선택 전에만 OS 변경을 따라간다(FR-015·016).
+  const hasThemeChoice = useRef(false)
 
   useEffect(() => {
+    const initial = parseStoredTheme(document.documentElement.dataset.theme ?? null)
+    if (initial) setTheme(initial)
+    try {
+      hasThemeChoice.current = parseStoredTheme(localStorage.getItem(THEME_KEY)) !== null
+    } catch {
+      hasThemeChoice.current = false
+    }
+    const mql =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null
+    const onSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (hasThemeChoice.current) return
+      const next: Theme = e.matches ? 'dark' : 'light'
+      switchDomTheme(next)
+      setTheme(next)
+    }
+    mql?.addEventListener('change', onSystemThemeChange)
+
     localStorage.removeItem(LEGACY_USER_KEY)
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
@@ -162,6 +199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
       subscription.unsubscribe()
+      mql?.removeEventListener('change', onSystemThemeChange)
     }
   }, [])
 
@@ -196,6 +234,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!ready) return
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts))
   }, [posts, ready])
+
+  const toggleTheme = useCallback(() => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    switchDomTheme(next)
+    hasThemeChoice.current = true
+    try {
+      localStorage.setItem(THEME_KEY, next)
+    } catch {
+      // 저장 불가(프라이빗 모드·용량 초과)여도 세션 내 전환은 계속 동작한다(FR-017).
+    }
+    setTheme(next)
+  }, [theme])
 
   const login = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -307,6 +357,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ready,
       user,
       posts,
+      theme,
+      toggleTheme,
       login,
       logout,
       updateUser,
@@ -322,6 +374,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ready,
       user,
       posts,
+      theme,
+      toggleTheme,
       login,
       logout,
       updateUser,

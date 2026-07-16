@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Clock, FileText, Search, Settings, Star, Trash2 } from 'lucide-react'
 import Avatar from '@/components/Avatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import type { User } from '@/lib/store'
 
 export type NavKey = 'all' | 'favorites' | 'recent' | 'trash'
@@ -66,6 +67,8 @@ export default function Rail({ user, nav, counts, search, onNav, onSearch }: Pro
       })}
 
       <div className="rail-spacer" />
+
+      <ThemeToggle />
 
       <Link href="/me" className="rail-footer" title="마이 페이지">
         <Avatar user={user} size={30} />

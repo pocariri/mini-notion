@@ -82,6 +82,7 @@ vi.mock('./supabase', () => ({
 }))
 
 import { StoreProvider, useStore } from './store'
+import { setSystemDark } from '../vitest.setup'
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <StoreProvider>{children}</StoreProvider>
@@ -305,6 +306,216 @@ describe('resetAll', () => {
       image: 'https://lh3.googleusercontent.com/a/photo.jpg',
     })
     expect(authMock.signOut).toHaveBeenCalled()
+  })
+})
+
+describe('테마 (다크모드)', () => {
+  test('초기값은 <html data-theme>를 따른다 (인라인 스크립트가 설정한 값, 이중 판정 금지)', async () => {
+    document.documentElement.dataset.theme = 'dark'
+
+    const { result } = await renderStore()
+
+    expect(result.current.theme).toBe('dark')
+  })
+
+  test('data-theme가 없으면 라이트로 시작한다', async () => {
+    const { result } = await renderStore()
+
+    expect(result.current.theme).toBe('light')
+  })
+
+  test('toggleTheme은 라이트→다크→라이트로 전이한다', async () => {
+    const { result } = await renderStore()
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+    expect(result.current.theme).toBe('dark')
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+    expect(result.current.theme).toBe('light')
+  })
+
+  test('전환하면 document의 data-theme가 즉시 갱신된다', async () => {
+    const { result } = await renderStore()
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  test('토글한 선택은 localStorage(mini-notion:theme)에 저장된다', async () => {
+    const { result } = await renderStore()
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+
+    expect(localStorage.getItem('mini-notion:theme')).toBe('dark')
+  })
+
+  // 아래 두 테스트는 T007에서 이미 구현된 FR-017·FR-018 경로의 회귀 방지 고정(pin)이다.
+  test('resetAll은 글 키는 지우되 테마 키(mini-notion:theme)는 보존한다(FR-018)', async () => {
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    act(() => {
+      result.current.createPost('지울 글')
+    })
+    act(() => {
+      result.current.toggleTheme()
+    })
+    expect(localStorage.getItem('mini-notion:theme')).toBe('dark')
+
+    await act(async () => {
+      await result.current.resetAll()
+    })
+
+    // 글 데이터는 비워진다(키는 지속 효과가 빈 배열로 즉시 재기록 — 기존 동작).
+    expect(JSON.parse(localStorage.getItem('mini-notion:posts') ?? '[]')).toHaveLength(0)
+    expect(localStorage.getItem('mini-notion:theme')).toBe('dark')
+  })
+
+  test('저장소 쓰기가 실패해도 세션 내 토글은 계속 동작한다(FR-017)', async () => {
+    const { result } = await renderStore()
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    try {
+      act(() => {
+        result.current.toggleTheme()
+      })
+
+      expect(result.current.theme).toBe('dark')
+      expect(document.documentElement.dataset.theme).toBe('dark')
+
+      act(() => {
+        result.current.toggleTheme()
+      })
+      expect(result.current.theme).toBe('light')
+    } finally {
+      setItem.mockRestore()
+    }
+  })
+
+  test('테마 전환은 posts·user 상태를 건드리지 않는다', async () => {
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    act(() => {
+      result.current.createPost('테마 무관 글')
+    })
+    const postsBefore = result.current.posts
+    const userBefore = result.current.user
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+
+    expect(result.current.posts).toBe(postsBefore)
+    expect(result.current.user).toBe(userBefore)
+  })
+})
+
+describe('테마 — 운영체제 설정 연동 (US3)', () => {
+  test('저장된 선택이 없는 동안 OS 다크 전환이 즉시 반영된다(FR-016)', async () => {
+    document.documentElement.dataset.theme = 'light'
+    const { result } = await renderStore()
+    expect(result.current.theme).toBe('light')
+
+    act(() => {
+      setSystemDark(true)
+    })
+
+    expect(result.current.theme).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+
+    act(() => {
+      setSystemDark(false)
+    })
+    expect(result.current.theme).toBe('light')
+  })
+
+  test('토글로 직접 선택한 뒤에는 OS 전환을 무시한다(FR-015)', async () => {
+    const { result } = await renderStore()
+    act(() => {
+      result.current.toggleTheme()
+    })
+    expect(result.current.theme).toBe('dark')
+
+    act(() => {
+      setSystemDark(true)
+    })
+    act(() => {
+      setSystemDark(false)
+    })
+
+    expect(result.current.theme).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  test('이전 방문에서 저장한 선택이 있으면 OS 전환을 무시한다(FR-015, 재방문)', async () => {
+    localStorage.setItem('mini-notion:theme', 'light')
+    document.documentElement.dataset.theme = 'light'
+    const { result } = await renderStore()
+
+    act(() => {
+      setSystemDark(true)
+    })
+
+    expect(result.current.theme).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+
+  test('선택 없음 + OS 다크(유효 다크)에서 토글하면 반대인 light가 저장된다', async () => {
+    setSystemDark(true)
+    document.documentElement.dataset.theme = 'dark'
+    const { result } = await renderStore()
+    expect(result.current.theme).toBe('dark')
+
+    act(() => {
+      result.current.toggleTheme()
+    })
+
+    expect(result.current.theme).toBe('light')
+    expect(localStorage.getItem('mini-notion:theme')).toBe('light')
+  })
+
+  test('첫 렌더는 OS 값을 저장하지 않는다(불변 조건 2 — 선택 전 OS 추적 유지)', async () => {
+    setSystemDark(true)
+    document.documentElement.dataset.theme = 'dark'
+
+    await renderStore()
+
+    expect(localStorage.getItem('mini-notion:theme')).toBeNull()
+  })
+
+  test('matchMedia 미지원 환경에서도 오류 없이 동작한다(라이트 폴백)', async () => {
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      const { result } = await renderStore()
+      expect(result.current.theme).toBe('light')
+
+      act(() => {
+        result.current.toggleTheme()
+      })
+      expect(result.current.theme).toBe('dark')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        value: original,
+        writable: true,
+        configurable: true,
+      })
+    }
   })
 })
 

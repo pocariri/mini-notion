@@ -54,9 +54,9 @@ hairline borders, soft radii, whisper shadows.
 
 ## 3. 디자인 토큰 (Design Tokens)
 
-`:root`의 CSS 변수 **총 92개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. (근거: `app/globals.css:7-118`)
+`:root`의 CSS 변수 **총 100개 전량**. 카테고리 순서는 코드 주석 순서를 유지한다. 별칭(`var(--x)`) 토큰은 **최종 실제값**까지 풀어 적는다. 라이트 값은 `:root`, 다크 오버라이드는 `[data-theme='dark']` 블록(§3.10). (근거: `app/globals.css`)
 
-### 3.1 Neutral scale (14개) — `app/globals.css:8-22`
+### 3.1 Neutral scale (16개)
 
 | 토큰명 | 값(원문) | 해석(최종 실제값) | 용도/의미 |
 |---|---|---|---|
@@ -70,9 +70,11 @@ hairline borders, soft radii, whisper shadows.
 | `--gray-400` | `#b6b6af` | #b6b6af | disabled 텍스트 / send disabled 아이콘 |
 | `--gray-500` | `#90908a` | #90908a | tertiary 텍스트 |
 | `--gray-600` | `#6e6e68` | #6e6e68 | secondary 텍스트 |
-| `--gray-700` | `#52524d` | #52524d | (스케일 상 진한 회색) |
-| `--gray-800` | `#363632` | #363632 | (스케일 상 더 진한 회색) |
-| `--gray-900` | `#23231f` | #23231f | 그림자 잉크 베이스(rgb 23,23,20 근사) |
+| `--gray-700` | `#52524d` | #52524d | (스케일 상 진한 회색) / 다크: strong 보더 |
+| `--gray-750` | `#43433e` | #43433e | 다크: default 보더 (스케일 사이값, 다크모드 추가) |
+| `--gray-800` | `#363632` | #363632 | (스케일 상 더 진한 회색) / 다크: active 표면·subtle 보더 |
+| `--gray-850` | `#2c2c28` | #2c2c28 | 다크: hover 표면 (스케일 사이값, 다크모드 추가) |
+| `--gray-900` | `#23231f` | #23231f | 그림자 잉크 베이스(rgb 23,23,20 근사) / 다크: 사이드바·카드 표면 |
 | `--black` | `#1a1a17` | #1a1a17 | inverse 표면(브랜드 타일 등) |
 
 ### 3.2 Accent (8개) — `app/globals.css:24-32`
@@ -101,7 +103,7 @@ hairline borders, soft radii, whisper shadows.
 | `--red-500` | `#e5484d` | #e5484d | 위험 액션(삭제/danger 버튼·배너) |
 | `--red-50` | `#fceceb` | #fceceb | danger hover 배경 / trash 배너 배경 |
 
-### 3.4 Surfaces (7개) — `app/globals.css:44-51`
+### 3.4 Surfaces (8개)
 
 | 토큰명 | 값(원문) | 해석(최종 실제값) | 용도/의미 |
 |---|---|---|---|
@@ -112,8 +114,9 @@ hairline borders, soft radii, whisper shadows.
 | `--surface-hover` | `var(--gray-100)` | #f0f0ee | hover 상태 배경 |
 | `--surface-active` | `var(--gray-150)` | #e9e9e6 | active 상태 배경 |
 | `--surface-inverse` | `var(--black)` | #1a1a17 | 브랜드 타일/로그인 로고 배경 |
+| `--surface-disabled` | `var(--gray-200)` | #e3e3df | 비활성 컨트롤 배경(send disabled) (다크모드 추가) |
 
-### 3.5 Text (6개) — `app/globals.css:53-59`
+### 3.5 Text (7개)
 
 | 토큰명 | 값(원문) | 해석(최종 실제값) | 용도/의미 |
 |---|---|---|---|
@@ -122,6 +125,7 @@ hairline borders, soft radii, whisper shadows.
 | `--text-tertiary` | `var(--gray-500)` | #90908a | 3차 텍스트(메타·플레이스홀더·카운트) |
 | `--text-disabled` | `var(--gray-400)` | #b6b6af | 비활성 텍스트 |
 | `--text-on-accent` | `var(--white)` | #ffffff | 액센트 배경 위 텍스트 |
+| `--text-on-inverse` | `var(--white)` | #ffffff | inverse 표면 위 텍스트(브랜드 타일·로그인 로고) (다크모드 추가) |
 | `--text-accent` | `var(--violet-600)` | #5b4fdb | 액센트 텍스트(액티브 내비·칩 on·뱃지) |
 
 ### 3.6 Borders (3개) — `app/globals.css:61-64`
@@ -132,7 +136,7 @@ hairline borders, soft radii, whisper shadows.
 | `--border-default` | `var(--gray-200)` | #e3e3df | 버튼·칩·필드·프롬프트 보더 |
 | `--border-strong` | `var(--gray-300)` | #d5d5d0 | 리스트로우 hover 보더 |
 
-### 3.7 Accent roles (5개) — `app/globals.css:66-71`
+### 3.7 Accent roles (9개)
 
 | 토큰명 | 값(원문) | 해석(최종 실제값) | 용도/의미 |
 |---|---|---|---|
@@ -141,6 +145,10 @@ hairline borders, soft radii, whisper shadows.
 | `--accent-soft` | `var(--violet-50)` | #f2f1fd | 연한 강조 배경(액티브 내비·선택 로우·칩 on·뱃지·empty 아이콘) |
 | `--accent-soft-border` | `var(--violet-200)` | #cdc9f6 | 연한 강조 보더(칩 on·empty 아이콘) |
 | `--focus-ring` | `color-mix(in srgb, var(--violet-500) 40%, transparent)` | #6a5df0 40% 알파(위에 transparent 혼합) | 포커스 링 색(그림자로 사용) |
+| `--selection-bg` | `var(--violet-100)` | #e6e4fb | `::selection` 배경 (다크모드 추가) |
+| `--avatar-bg` | `var(--violet-100)` | #e6e4fb | 아바타 배경 (다크모드 추가) |
+| `--avatar-text` | `var(--violet-700)` | #4a40b5 | 아바타 이니셜 텍스트 (다크모드 추가) |
+| `--danger-soft` | `var(--red-50)` | #fceceb | 위험 연한 배경(danger hover·trash 배너) (다크모드 추가) |
 
 ### 3.8 Typography (23개) — `app/globals.css:73-97`
 
@@ -193,7 +201,37 @@ hairline borders, soft radii, whisper shadows.
 | `--dur-slow` | `260ms` | 260ms | (정의됨, 직접 사용처 확인 불가) |
 | `--dur-shimmer` | `1400ms` | 1400ms | 커버 스켈레톤 pulse 주기(`.cover-skeleton`, §5.14) |
 
-> **토큰 합계 검증**: Neutral 14 + Accent 8 + Semantic 8 + Surfaces 7 + Text 6 + Borders 3 + Accent roles 5 + Typography 23 + Radius/elevation/motion 18 = **92개** (코드 `:root` 실측치 92와 일치).
+> **토큰 합계 검증**: Neutral 16 + Accent 8 + Semantic 8 + Surfaces 8 + Text 7 + Borders 3 + Accent roles 9 + Typography 23 + Radius/elevation/motion 18 = **100개** (코드 `:root` 실측치 100과 일치. 다크모드 기능에서 8개 추가 — 원시 2: `--gray-750`·`--gray-850`, 시맨틱 6: `--surface-disabled`·`--text-on-inverse`·`--selection-bg`·`--avatar-bg`·`--avatar-text`·`--danger-soft`).
+
+### 3.10 다크 테마 오버라이드 — `[data-theme='dark']`
+
+**원칙**: 시맨틱 계층만 재정의하고 원시 팔레트(gray/violet/hue 스케일)는 불변. 컴포넌트 CSS는 토큰만 참조하므로 이 블록 하나로 전 화면이 전환된다. `<html data-theme>`는 루트 레이아웃의 인라인 스크립트가 첫 페인트 전에 설정(§6.6). `color-scheme`도 테마별로 선언(`:root`=light, 다크 블록=dark)해 네이티브 컨트롤·스크롤바가 테마를 따른다.
+
+| 토큰 | 다크 값(원문) | 해석 | 대비(대표 조합, WCAG) |
+|---|---|---|---|
+| `--surface-page` / `--surface-sunken` | `var(--black)` | #1a1a17 | — |
+| `--surface-sidebar` / `--surface-card` | `var(--gray-900)` | #23231f | — |
+| `--surface-hover` | `var(--gray-850)` | #2c2c28 | — |
+| `--surface-active` / `--surface-disabled` / `--border-subtle` | `var(--gray-800)` | #363632 | — |
+| `--surface-inverse` | `var(--gray-100)` | #f0f0ee | 반전: 밝은 타일 |
+| `--text-primary` | `var(--gray-100)` | #f0f0ee | 15.28:1 on page, 13.82:1 on card ✓ |
+| `--text-secondary` | `var(--gray-400)` | #b6b6af | 8.55:1 on page ✓ |
+| `--text-tertiary` | `var(--gray-500)` | #90908a | 5.43:1 on page ✓ (hover 표면 위 4.37:1 — 메타 전용 역할, 라이트의 동일 조합 2.76:1 대비 개선) |
+| `--text-disabled` | `var(--gray-600)` | #6e6e68 | 비활성(WCAG 예외 대상) |
+| `--text-on-inverse` | `var(--black)` | #1a1a17 | 15.28:1 on inverse ✓ |
+| `--text-accent` | `var(--violet-300)` | #ada6ef | 7.87:1 on page, 6.11:1 on accent-soft ✓ |
+| `--border-default` | `var(--gray-750)` | #43433e | (보더 — 라이트와 동일하게 저대비 헤어라인 정책) |
+| `--border-strong` | `var(--gray-700)` | #52524d | — |
+| `--accent-hover` | `var(--violet-400)` | #8a80e6 | 다크에선 밝은 쪽으로 hover |
+| `--accent-soft` | `color-mix(in srgb, var(--violet-500) 16%, var(--gray-900))` | ≈#2e2c40 | — |
+| `--accent-soft-border` | `color-mix(in srgb, var(--violet-500) 38%, var(--gray-900))` | ≈#3e3868 | — |
+| `--selection-bg` | `var(--violet-700)` | #4a40b5 | 6.84:1 (text-primary 위) ✓ |
+| `--avatar-bg` | `color-mix(in srgb, var(--violet-500) 25%, var(--gray-900))` | ≈#353253 | — |
+| `--avatar-text` | `var(--violet-200)` | #cdc9f6 | 7.67:1 on avatar-bg ✓ |
+| `--danger-soft` | `color-mix(in srgb, var(--red-500) 14%, var(--gray-900))` | ≈#3e2825 | red-500 텍스트 3.50:1(큰 UI 기준) ✓ |
+| `--shadow-xs/sm/md/lg` | 잉크 `rgba(0,0,0, .3–.55)` | 라이트보다 진한 잉크 | — |
+
+**다크에서 재정의하지 않는 것(의도)**: `--accent`(#6a5df0, page 위 3.68:1 — UI 3:1 ✓)·`--text-on-accent`(white on accent 4.73:1 ✓)·`--focus-ring`·의미색 `--amber-500`(8.09:1)·`--green-500`(6.56:1)·`--red-500`(4.46:1)·리스트 선택 보더 `--violet-300` — 중간 명도라 두 테마 모두 성립. `GoogleLogo.tsx`의 구글 브랜드색 4개도 테마와 무관하게 원본 유지.
 
 ---
 
@@ -310,7 +348,7 @@ body {
 ### 5.4 Sidebar rail — `app/globals.css:279-429` · `components/Rail.tsx`
 
 - **목적/역할**: 좌측 3-pane의 1번째 pane. 브랜드·검색·내비게이션·유저 푸터. 대응 와이어프레임: 1a.
-- **해부(구조 계층)**: `.rail` → `.brand`(`.brand-tile` + `.brand-name`) → `.rail-search`(아이콘 + input) → `.section-label` → `.navitem` × N(아이콘 + 라벨 + `.count`) → `.rail-spacer` → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
+- **해부(구조 계층)**: `.rail` → `.brand`(`.brand-tile` + `.brand-name`) → `.rail-search`(아이콘 + input) → `.section-label` → `.navitem` × N(아이콘 + 라벨 + `.count`) → `.rail-spacer` → `ThemeToggle`(§5.15) → `.rail-footer`(Avatar + `.rail-username` + `.gear`).
 - **핵심 수치/토큰**:
 
 | 요소 | 주요 값 |
@@ -528,12 +566,20 @@ body {
 | 요소 | 값 |
 |---|---|
 | `.cover` | `position:relative`, `width:100%`, `height:180px` 고정, `margin:0 0 18px`, `border-radius:--radius-lg`(12px), `overflow:hidden` |
-| `.cover-skeleton` | `position:absolute; inset:0`, `background:--gray-100`, `cover-pulse` 키프레임(`--gray-100↔--gray-150` 배경 교차)을 `--dur-shimmer`(1400ms) 주기로 무한 반복; `prefers-reduced-motion: reduce`에서 `animation:none`(정적) |
+| `.cover-skeleton` | `position:absolute; inset:0`, `background:--surface-hover`, `cover-pulse` 키프레임(`--surface-hover↔--surface-active` 배경 교차)을 `--dur-shimmer`(1400ms) 주기로 무한 반복; `prefers-reduced-motion: reduce`에서 `animation:none`(정적) — 시맨틱 토큰이라 다크에서 자동 전환 |
 | `.cover-img` | `display:block`, `width/height:100%`, `object-fit:cover`; `[hidden]`이면 `display:none`(로딩 중 가림) |
-| `.cover-fallback` | flex 중앙정렬, `width/height:100%`, `border:1px solid --border-subtle`, `border-radius:--radius-lg`, `background:--gray-100`, `color:--text-disabled` |
+| `.cover-fallback` | flex 중앙정렬, `width/height:100%`, `border:1px solid --border-subtle`, `border-radius:--radius-lg`, `background:--surface-hover`, `color:--text-disabled` |
 
 - **상태**: `loading`(마운트 직후, 스켈레톤 + 이미지 hidden) → `load` 이벤트 → `loaded`(이미지 표시) / `error` 이벤트 → `error`(폴백: lucide `Cat` 22 아이콘, 오류 문구 없음). 회전 스피너는 어떤 상태에도 없다.
 - **React(`components/CatCover.tsx`)**: props 없음. `useState` 초기화 함수로 마운트 시 1회 `?width=760&_={nonce}` 캐시버스터 URL 생성(리렌더에 불변 — cataas 응답에 캐시 헤더가 없어 nonce 없이는 브라우저 캐시가 같은 고양이를 재사용할 수 있음). `Editor`가 `key={`cover-${post.id}`}`로 렌더해 글 전환 시 리마운트(상태 초기화 + 늦은 응답의 경쟁 조건 차단). 접근성: 장식 요소로 `img alt=""`, 스켈레톤·폴백 `aria-hidden="true"`. testid: `cover-image`/`cover-skeleton`/`cover-fallback`.
+
+### 5.15 Theme toggle (테마 토글) — `components/ThemeToggle.tsx`
+
+- **목적/역할**: 라이트↔다크 테마 전환 스위치. 두 사이드바(업무 §6.2, 마이 페이지 §6.4)의 `.rail-spacer` 아래에 공용으로 배치. 스펙: `specs/003-dark-mode-toggle/`.
+- **해부(구조)**: 기존 `.navitem` 클래스를 그대로 쓰는 `<button type="button" role="switch">` — 신규 스타일 없음. 아이콘(lucide 15px) + 라벨.
+- **상태 표시**: 라이트일 때 `Moon` + "다크 모드"(`aria-checked=false`), 다크일 때 `Sun` + "라이트 모드"(`aria-checked=true`) — 라벨이 클릭 시 전환될 대상을 예고한다.
+- **React**: props 없음 — `useStore()`의 `theme`/`toggleTheme`만 구독해 어디서 렌더돼도 동일 상태(두 레일 일치 보장).
+- **동작**: 클릭/Enter/Space → `toggleTheme()` 1회. 전환은 즉시(트랜지션 억제, §7)이며 새로고침·내비게이션 없음.
 
 ---
 
@@ -566,7 +612,7 @@ body {
 
 ### 6.4 `/me` 마이 페이지 (와이어프레임 1i) — `app/me/page.tsx`
 
-- **구조**: `.workspace` 프레임 재사용 — 좌측 `.rail`(설정 내비: 프로필/계정 탭 + "업무로 돌아가기" 링크) + 우측 `.settings-body`.
+- **구조**: `.workspace` 프레임 재사용 — 좌측 `.rail`(설정 내비: 프로필/계정 탭 + `ThemeToggle`(§5.15) + "업무로 돌아가기" 링크) + 우측 `.settings-body`.
 - **프로필 탭**: 아바타(78) + 이미지 변경/제거 + 별명 필드(`#n/20` 카운터) + "연결된 계정 · Google" 힌트 + 저장 버튼(+저장 완료 노트).
 - **계정 탭**: 이메일 행, 연결된 계정 뱃지(GOOGLE), danger-zone(로그아웃 / 모든 데이터 초기화).
 - **동작**: 폼 초기값은 최초 1회만 사용자 정보에서 hydrate(`me/page.tsx:31-37`). `dirty`(변경됨) & `valid`(별명 비어있지 않음) & 저장 중이 아닐 때만 저장 가능. 저장은 Supabase `public.profile`에 upsert되어 다른 브라우저에서도 유지된다.
@@ -577,7 +623,8 @@ body {
 
 ### 6.6 layout (루트) — `app/layout.tsx`
 
-- `<html lang="ko" className={pretendard.variable}>` → `<body>` → `<StoreProvider>`. 전역 폰트 변수·메타데이터·전역 스토어를 여기서 주입. 전 페이지 공통 프레임.
+- `<html lang="ko" data-theme="light" suppressHydrationWarning className={pretendard.variable}>` → `<head>`(테마 인라인 스크립트) → `<body>` → `<StoreProvider>`. 전역 폰트 변수·메타데이터·전역 스토어를 여기서 주입. 전 페이지 공통 프레임.
+- **테마 부트스트랩**: `<head>`의 인라인 `<script>`가 첫 페인트 전에 `localStorage['mini-notion:theme']`(없으면 `prefers-color-scheme`)를 읽어 `data-theme`를 교정한다 — 잘못된 테마가 그려지는 프레임이 없다(FOUC 0). `suppressHydrationWarning`은 이 사전 변경을 React가 수용하게 하는 짝(Next.js 공식 패턴, `preventing-flash-before-hydration.md`). 로직 원본은 `lib/theme.ts`, 스크립트는 읽기 전용(쓰기는 전부 `lib/store.tsx`).
 
 ---
 
@@ -603,9 +650,13 @@ body {
 
 **트랜지션 duration/ease 사용 규칙**: 코드에서 실제로 쓰이는 조합은 `--dur-fast`(120ms) + `--ease-standard`(`cubic-bezier(0.2, 0, 0.1, 1)`) 하나로 통일. 전이 속성은 컴포넌트별로 `background`/`border-color`/`color`/`box-shadow` 조합. (`--dur-base`, `--dur-slow`, `--ease-out`는 토큰으로 정의만 되고 CSS 사용처는 확인 불가.)
 
+**테마 전환 (다크모드)**: 전환은 애니메이션 없이 즉시다. `toggleTheme`(`lib/store.tsx`)이 `<html>`에 `theme-switching` 클래스를 얹고 `data-theme`를 바꾼 뒤 강제 리플로우 후 즉시 제거 — 그 프레임 동안 `html.theme-switching *`의 `transition: none !important`가 걸려 배경·컨트롤이 어긋나지 않고 한 번에 바뀐다. hover 등 평소 120ms 트랜지션은 전환 후 그대로 동작. 모션 최소화 설정 여부와 무관하게 같은 동작(애니메이션 자체가 없으므로).
+
 ---
 
 ## 8. 데이터 모델 (Data Model, 디자인 영향분) — `lib/store.tsx`
+
+**테마 상태** (`lib/store.tsx` + `lib/theme.ts`): `Store.theme: 'light' | 'dark'`(유효 테마)와 `toggleTheme()`. 영속 키 `mini-notion:theme`(값 `"light"|"dark"`, 부재 = 선택 없음 → OS 설정 따름). 초기값은 인라인 스크립트가 설정한 `<html data-theme>`에서 읽는다. "모든 데이터 초기화"(`resetAll`)는 이 키를 보존한다 — 테마는 계정 데이터가 아니라 기기 설정.
 
 **`User` 타입 필드 전량** (`store.tsx:14-18`):
 
@@ -671,7 +722,8 @@ body {
 
 | 디자인 요소 | 소스 파일:라인 |
 |---|---|
-| 디자인 토큰 92개(`:root`) | `app/globals.css:7-118` |
+| 디자인 토큰 100개(`:root`) + 다크 오버라이드 | `app/globals.css`(`:root` · `[data-theme='dark']`) |
+| 테마 토글 / 테마 로직 | `components/ThemeToggle.tsx` / `lib/theme.ts` · `lib/store.tsx` |
 | body 기본/타이포/selection | `app/globals.css:119-157` |
 | Buttons | `app/globals.css:159-231` |
 | Chip | `app/globals.css:233-258` |
@@ -710,7 +762,7 @@ body {
 
 ## 자기 검증 체크리스트 (Self-Verification)
 
-- [x] `:root`의 CSS 변수 개수와 문서 토큰 개수가 **일치**(코드 실측 91개 = 문서 14+8+8+7+6+3+5+23+17 = 91개).
+- [x] `:root`의 CSS 변수 개수와 문서 토큰 개수가 **일치**(코드 실측 100개 = 문서 16+8+8+8+7+3+9+23+18 = 100개. ※ 이전 판의 "91개" 표기는 92개 시점의 낡은 기록이라 함께 정정함).
 - [x] `globals.css`의 컴포넌트 섹션 **13개** 모두 문서화(Buttons/Chip/Avatar/Sidebar rail/Workspace layout/Prompt box + slash menu/Post list/Detail·editor/Empty state/Login/Splash/Settings/Responsive).
 - [x] React 컴포넌트 5개(Avatar/Editor/PromptBox/GoogleLogo/Rail) 모두 언급.
 - [x] 화면 5개(login/workspace/me/splash/layout) 모두 문서화.
