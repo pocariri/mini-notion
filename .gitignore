@@ -14,13 +14,44 @@ coverage/
 .env*
 !.env.example
 
+# Keys / certificates — never commit these
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Deployment
+.vercel
+.turbo/
+
 # Logs
 *.log
 npm-debug.log*
 
 # Editor / OS
 .DS_Store
+Thumbs.db
 *.swp
+.vscode/
+.idea/
+
+# Agent tooling
+# Personal, per-machine settings — must not be shared.
+.claude/settings.local.json
+# Session scratch from the superpowers workflow.
+.superpowers/
+# Third-party skills installed by `npx skills add`. Restorable from the
+# committed skills-lock.json, so they are build output rather than source.
+# .claude/skills/<name> is a symlink into .agents/ — ignore both together,
+# or teammates get a dangling link. Add a line here for each new locked skill.
+.agents/
+.claude/skills/supabase
+.claude/skills/supabase-postgres-best-practices
 
 # TypeScript
 *.tsbuildinfo

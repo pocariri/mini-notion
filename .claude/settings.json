@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-env-access.sh",
+            "timeout": 10,
+            "statusMessage": "Checking .env access"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-hardcoded-config.sh",
+            "timeout": 30,
+            "statusMessage": "Scanning for hardcoded config"
+          }
+        ]
+      }
+    ]
+  }
+}
