@@ -1,23 +1,26 @@
 <!--
 SYNC IMPACT REPORT
-- Version change: 1.0.0 → 1.1.0 (MINOR: 새 원칙/섹션 추가)
-- Amendment: superpowers `test-driven-development` 스킬 기반 TDD를 NON-NEGOTIABLE로 의무화하고,
-  실제 테스트 프레임워크(Vitest + React Testing Library + jsdom)를 세팅하여 반영
+- Version change: 1.1.0 → 1.2.0 (MINOR: 실제 백엔드 반영 + 보안(RLS) 가이드라인 신설)
+- Amendment: 페이지 영속성이 localStorage에서 Supabase public.page로 이전되고(스펙
+  003-supabase-page-storage), 인증이 목(mock)에서 실제 Google OAuth(Supabase Auth, PKCE)로
+  교체됨에 따라, 코드와 어긋난 기술 제약 서술을 현행화하고 RLS 보안 규칙을 명문화
 - Principles:
-  - (유지) I. 디자인 시스템 준수 / II. 프레임워크 실제 확인 우선 / III. 단일 저장소 게이트웨이
-  - (유지) IV. 제로코스트·클라이언트 우선 단순성 / V. 스펙 주도 개발 & 동작 검증
-  - (신규) VI. 테스트 주도 개발 (Test-Driven Development, NON-NEGOTIABLE)
+  - (유지) I. 디자인 시스템 준수 / II. 프레임워크 실제 확인 우선
+  - (현행화) III. 단일 저장소 게이트웨이 — 대상을 페이지·프로필로, 경계를 supabase-js 싱글턴으로 재서술.
+    "향후 OAuth 교체" 문구 제거(이미 완료)
+  - (현행화) IV. 제로코스트·클라이언트 우선 단순성 — "인증은 목으로 둔다" 예시 제거,
+    Supabase 무료 티어를 비용 0원 수단으로 명시
+  - (유지) V. 스펙 주도 개발 & 동작 검증 / VI. 테스트 주도 개발 (NON-NEGOTIABLE)
 - Sections:
-  - (확장) 기술·아키텍처 제약 — 테스트 스택 항목 추가
-  - (확장) 개발 워크플로우 — TDD Red-Green-Refactor 절차 추가
-  - (확장) Governance — TDD 준수 게이트 추가
+  - (재정의) 기술·아키텍처 제약 — 영속성(Supabase public.page/profile), 인증(실제 Google OAuth)
+  - (신설) 기술·아키텍처 제약 > 보안 — RLS가 유일한 방어선, 정책 작성 규칙, 실DB 검증 의무
+  - (확장) 기술·아키텍처 제약 > 테스트 — Supabase 경계 대역 규칙, "목은 RLS를 검증하지 못한다"
+  - (확장) 개발 워크플로우 — DB·보안 작업의 실DB 검증 절차 추가
 - Templates alignment:
-  - ✅ .specify/templates/tasks-template.md — 테스트 OPTIONAL → TDD MANDATORY로 갱신
   - ✅ .specify/templates/plan-template.md — Constitution Check가 헌법을 일반 참조, 수정 불필요
   - ✅ .specify/templates/spec-template.md — 정합성 확인, 수정 불필요
-- Test harness (신규 세팅, 검증 완료 8/8 통과):
-  - vitest.config.ts / vitest.setup.ts / package.json scripts(test, test:run)
-  - lib/format.test.ts / lib/store.test.tsx
+  - ✅ .specify/templates/tasks-template.md — TDD MANDATORY 서술 유지, 수정 불필요
+  - ✅ README.md / DESIGN.md — 기능 커밋(a686c36)에서 이미 동기화됨
 - Deferred TODOs: 없음
 -->
 
@@ -50,18 +53,22 @@ SYNC IMPACT REPORT
 
 ### III. 단일 저장소 게이트웨이 (Single Storage Gateway)
 
-모든 영속 상태(글, 사용자/별명, 즐겨찾기, 휴지통 등)는 `lib/store.tsx`를 통해서만 읽고 써야 한다(MUST).
+모든 영속 상태(페이지, 프로필)는 `lib/store.tsx`를 통해서만 읽고 써야 한다(MUST).
 
-- 컴포넌트와 페이지는 `localStorage`를 직접 접근하지 않는다.
-- 향후 API/DB 교체 지점(예: `login()`의 OAuth 교체)은 `lib/store.tsx` 한 곳에 격리한다.
+- 컴포넌트와 페이지는 Supabase를 직접 호출하지 않는다. supabase-js 접근은 `lib/supabase.ts`
+  싱글턴 하나로 한정하며, 그 소비자는 스토어뿐이다.
+- 저장 정책(자동 저장 디바운스, 낙관적 갱신과 롤백, 레거시 `localStorage` 키 정리)은 스토어가
+  소유한다. 저장 타이밍·실패 처리를 UI 컴포넌트에 흩어 두지 않는다.
 
-**Rationale**: 서버·DB 없는 현재 구조에서 이후 백엔드 이전 경로를 깨끗하게 유지하기 위한 유일한 이음새다.
+**Rationale**: localStorage → Supabase 이전이 실제로 이 이음새 하나로 이뤄졌다. 백엔드가 생긴 지금도
+이 단일 경계가 저장소 교체·정책 변경을 국소화하고 테스트 대역의 주입 지점을 하나로 유지한다.
 
 ### IV. 제로코스트·클라이언트 우선 단순성 (Zero-Cost, Client-First Simplicity / YAGNI)
 
-운영 비용 0원을 목표로 한다. 서버·DB·유료 인프라는 PRD가 실제로 요구할 때만 도입해야 한다(MUST).
+운영 비용 0원을 유지한다. 유료 인프라와 자체 서버 코드는 PRD가 실제로 요구할 때만 도입해야 한다(MUST).
 
-- 실제 인프라가 불필요한 영역은 목(mock)으로 둔다(예: 인증). 단, 실제 전환 방법을 문서화한다.
+- 백엔드는 Supabase 무료 티어(Postgres + Auth)로 한정한다. DB가 곧 백엔드이고 RLS가 곧 인가
+  계층이다 — 별도 API 라우트·서버 컴포넌트 페칭·캐시 라이브러리는 필요가 증명되기 전에는 도입하지 않는다.
 - PRD를 만족하는 가장 단순한 구현을 택하고, 추측성 일반화·조기 추상화는 지양한다.
 
 **Rationale**: 본 프로젝트는 운영 비용 0원 MVP다. 불필요한 복잡성은 목표에 반한다.
@@ -87,7 +94,7 @@ superpowers `test-driven-development` 스킬의 규칙을 그대로 따른다.
   테스트보다 먼저 작성된 프로덕션 코드는 삭제하고 테스트부터 다시 시작한다.
 - **Red → Green → Refactor**: (1) 하나의 동작에 대한 실패 테스트 작성 → (2) 실패를 눈으로 확인 →
   (3) 통과할 최소 코드 작성 → (4) 통과 확인 → (5) 그린 상태에서 리팩터링.
-- **실제 동작 테스트**: 목은 불가피할 때만, 외부 경계(예: 브라우저 API)에서만 사용한다.
+- **실제 동작 테스트**: 목은 불가피할 때만, 외부 경계(예: 브라우저 API, 네트워크)에서만 사용한다.
   목의 동작을 검증하지 않는다. 프로덕션 클래스에 테스트 전용 메서드를 추가하지 않는다.
   목은 실제 데이터 구조를 완전하게 반영한다. (`test-driven-development/testing-anti-patterns.md` 준수)
 - **버그 수정**: 재현하는 실패 테스트를 먼저 작성한 뒤 고친다.
@@ -101,15 +108,27 @@ superpowers `test-driven-development` 스킬의 규칙을 그대로 따른다.
 
 ## 기술·아키텍처 제약 (Technology & Architecture Constraints)
 
-- **프레임워크**: Next.js 16.2.x (App Router), React 19.2.x, TypeScript 5.
+- **프레임워크**: Next.js 16.2.x (App Router), React 19.2.x, TypeScript 5. 모든 화면은 클라이언트
+  컴포넌트(`'use client'`)이며 자체 API 라우트·서버 코드가 없다.
 - **UI**: Pretendard Variable(로컬 폰트), Lucide 라인 아이콘, 단일 액센트 `#6a5df0`, 헤어라인 보더, 부드러운 라운드.
-- **영속성**: 브라우저 `localStorage`(서버·DB 없음). 상태 로직은 `lib/store.tsx`에 집중한다.
-- **인증**: 목 인증. 실배포 시 `login()`을 NextAuth(Auth.js) 등 Google OAuth로 교체한다.
+- **영속성**: Supabase Postgres. 페이지는 `public.page`(id·created_at·title·content·user_id —
+  칼럼 구성 확정, 변경 금지), 프로필은 `public.profile`. 상태 로직은 `lib/store.tsx`에 집중한다(원칙 III).
+  `localStorage`에는 Supabase 인증 세션만 남으며, 이전 구조의 레거시 키(`mini-notion:posts`,
+  `mini-notion:user` 등)는 초기화 시 제거하고 서버로 이관하지 않는다.
+- **인증**: Supabase Auth의 실제 Google OAuth(PKCE, 브라우저 세션 — `lib/supabase.ts` 싱글턴).
+  로그인한 사용자만 페이지를 생성·조회·수정·삭제할 수 있다.
+- **보안**: 소유자별 접근 제어는 DB의 RLS 정책으로 강제해야 한다(MUST). 클라이언트의 소유자 필터는
+  편의와 전송량을 위한 것일 뿐 보안 경계가 아니다. 노출 스키마의 테이블 GRANT가 `anon`에게 열려
+  있으므로 **정책이 유일한 방어선**임을 전제로 작성한다 — `to authenticated`를 명시하고
+  `(select auth.uid()) = user_id` 술어를 쓰며, UPDATE 정책은 `using`과 `with check`를 모두 둔다.
+  `using (true)`와 `auth.role()` 조건은 금지한다.
 - **테스트**: Vitest + `@testing-library/react` + jsdom 환경. 실행은 `npm test`(watch) / `npm run test:run`(1회).
   테스트는 대상 소스 옆에 `*.test.ts(x)`로 co-locate 한다. 설정은 `vitest.config.ts`, 공통 셋업은 `vitest.setup.ts`.
   이 jsdom 빌드가 `localStorage`를 구현하지 않으므로, `vitest.setup.ts`에서 완전한 in-memory Storage를
-  경계 구현으로 제공한다. 시간 의존 코드는 `vi.useFakeTimers()`로 결정적으로 테스트한다.
-- **화면**: `/login`, `/workspace`(3-pane + `/page` 슬래시 메뉴 + 빈 상태 환영), `/me`.
+  경계 구현으로 제공한다. Supabase 경계는 `lib/supabase.ts` 모듈을 in-memory 대역으로 모킹하되,
+  대역은 실제 칼럼 구조를 그대로 반영하고 실패 주입을 지원한다. **목(대역)은 RLS를 검증하지 못한다** —
+  접근 제어 규칙은 반드시 실제 DB에 대해 확인한다. 시간 의존 코드는 `vi.useFakeTimers()`로 결정적으로 테스트한다.
+- **화면**: `/login`, `/workspace`(3-pane + `/page` 슬래시 메뉴 + 로딩 스켈레톤·빈 상태·실패 상태 구분), `/me`.
   신규 화면은 `DESIGN.md` §6 화면 규격을 따른다.
 
 ## 개발 워크플로우 (Development Workflow)
@@ -118,6 +137,9 @@ superpowers `test-driven-development` 스킬의 규칙을 그대로 따른다.
   최소 구현 → 통과 확인 → 리팩터링(그린 유지). (원칙 VI)
 - **UI 작업**: `DESIGN.md` 관련 섹션 읽기 → (TDD로) 구현 → 디자인 변경 시 `DESIGN.md` 동기화.
 - **프레임워크 작업**: `node_modules/next/dist/docs/`의 관련 가이드 확인 → 구현.
+- **DB·보안 작업**: RLS 정책 등 접근 규칙의 추가·변경은 자동 테스트로 대체할 수 없다.
+  실제 DB에 대해 거부되어야 할 접근(비로그인·타 소유자)이 거부되고 허용되어야 할 접근이
+  허용됨을 확인한 뒤 완료로 선언한다. Supabase security advisor 경고를 함께 점검한다.
 - **검증**: 테스트 통과에 더해, 런타임 표면이 있는 변경은 `npm run dev`로 실제 구동을 관찰한 뒤 완료로 선언한다.
 - **산출물 위치**: 스펙킷 산출물(spec.md / plan.md / tasks.md 등)은 `specs/[###-feature]/`에 둔다.
 
@@ -131,6 +153,7 @@ superpowers `test-driven-development` 스킬의 규칙을 그대로 따른다.
 - **동기화 대상**: `CLAUDE.md`, `AGENTS.md`, `DESIGN.md`는 런타임 지침 문서이며, 헌법 개정 시 함께 동기화한다.
 - **준수 확인**: 모든 리뷰와 구현은 본 헌법 준수를 확인한다. 특히 NON-NEGOTIABLE 게이트인
   원칙 I(디자인 시스템)과 원칙 VI(TDD)는 예외 없이 검증한다. 프로덕션 코드에는 먼저 실패한 테스트가
-  반드시 존재해야 하며, 복잡성은 YAGNI(원칙 IV) 대비 정당화되어야 한다.
+  반드시 존재해야 하며, 복잡성은 YAGNI(원칙 IV) 대비 정당화되어야 하고, 접근 제어 변경은
+  실제 DB 검증 증거를 동반해야 한다.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-07-09
+**Version**: 1.2.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-07-16
