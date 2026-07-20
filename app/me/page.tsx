@@ -39,6 +39,8 @@ export default function MePage() {
   const [tab, setTab] = useState<Tab>('profile')
   const [nickname, setNickname] = useState('')
   const [image, setImage] = useState<string | null>(null)
+  // 새로 고른 파일. 업로드는 '변경 사항 저장'에서 일어난다 — 선택 시점에는 미리보기만.
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [introduction, setIntroduction] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -73,10 +75,11 @@ export default function MePage() {
   // 프로필 조회 실패 — 폼에 보이는 값을 신뢰할 수 없으므로 입력·저장을 전부 잠근다(FR-019·020).
   const profileError = profileStatus === 'error'
 
+  // 이미지 변경 여부: 새 파일을 골랐거나(pendingFile), 있던 이미지를 제거했거나.
+  // data URL 미리보기와 저장된 URL은 문자열로 비교할 수 없어 상태로 판정한다.
+  const imageDirty = pendingFile !== null || (image === null && user.image !== null)
   const dirty =
-    nickname !== user.nickname ||
-    image !== user.image ||
-    introduction !== (user.introduction ?? '')
+    nickname !== user.nickname || imageDirty || introduction !== (user.introduction ?? '')
   const valid = nickname.trim().length > 0
 
   const handleFile = (file: File | undefined) => {
@@ -89,6 +92,8 @@ export default function MePage() {
       window.alert('5MB 이하 이미지만 업로드할 수 있어요.')
       return
     }
+    // 여기서는 미리보기만 만든다 — 실제 업로드는 '변경 사항 저장'에서 일어난다.
+    setPendingFile(file)
     const reader = new FileReader()
     reader.onload = () => setImage(reader.result as string)
     reader.readAsDataURL(file)
@@ -101,10 +106,12 @@ export default function MePage() {
     const trimmed = nickname.trim()
     // 자기소개는 선택 항목 — trim 결과가 비면 "없음"(null)으로 저장한다.
     const introTrimmed = introduction.trim()
+    // File = 교체, null = 제거, undefined = 변경 없음
+    const imageFile = pendingFile ?? (image === null && user.image !== null ? null : undefined)
     const { error } = await updateUser({
       nickname: trimmed,
-      image,
       introduction: introTrimmed === '' ? null : introTrimmed,
+      imageFile,
     })
     setSaving(false)
     if (error) {
@@ -113,6 +120,7 @@ export default function MePage() {
     }
     setNickname(trimmed)
     setIntroduction(introTrimmed)
+    setPendingFile(null)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -209,7 +217,10 @@ export default function MePage() {
                   {image && (
                     <button
                       className="btn btn-ghost"
-                      onClick={() => setImage(null)}
+                      onClick={() => {
+                        setImage(null)
+                        setPendingFile(null)
+                      }}
                       disabled={profileError}
                     >
                       <X size={14} />

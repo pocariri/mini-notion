@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const routerMock = vi.hoisted(() => ({
@@ -27,7 +27,12 @@ const supaMock = vi.hoisted(() => {
   const state = {
     profiles: {} as Record<
       string,
-      { name: string | null; image: string | null; introduction: string | null }
+      {
+        name: string | null
+        image: string | null
+        image_path?: string | null
+        introduction: string | null
+      }
     >,
     selectError: null as { message: string } | null,
     upsertError: null as { message: string } | null,
@@ -37,18 +42,40 @@ const supaMock = vi.hoisted(() => {
       user_id: string
       name: string | null
       image: string | null
+      image_path?: string | null
       introduction?: string | null
     }) => {
       if (state.upsertError) return { error: state.upsertError }
       state.profiles[row.user_id] = {
         name: row.name,
         image: row.image,
+        image_path: row.image_path ?? null,
         introduction: row.introduction ?? null,
       }
       return { error: null }
     },
   )
   return { googleSession, state, upsert }
+})
+
+// Supabase Storage 대역 — 업로드는 '변경 사항 저장' 시점에만 일어나야 한다.
+const storageMock = vi.hoisted(() => {
+  const state = { uploadError: null as { message: string } | null }
+  const upload = vi.fn(async () => {
+    if (state.uploadError) return { data: null, error: state.uploadError }
+    return { data: {}, error: null }
+  })
+  const remove = vi.fn(async () => ({ data: null, error: null }))
+  return {
+    state,
+    upload,
+    remove,
+    reset() {
+      state.uploadError = null
+      upload.mockClear()
+      remove.mockClear()
+    },
+  }
 })
 
 vi.mock('@/lib/supabase', () => ({
@@ -76,6 +103,9 @@ vi.mock('@/lib/supabase', () => ({
       upsert: supaMock.upsert,
       delete: () => ({ eq: async () => ({ error: null }) }),
     }),
+    storage: {
+      from: () => ({ upload: storageMock.upload, remove: storageMock.remove }),
+    },
   },
 }))
 
@@ -110,6 +140,7 @@ beforeEach(() => {
   supaMock.state.selectError = null
   supaMock.state.upsertError = null
   supaMock.upsert.mockClear()
+  storageMock.reset()
   localStorage.clear()
 })
 
@@ -224,6 +255,7 @@ describe('자기소개 등록·조회 (US1)', () => {
         user_id: 'uid-123',
         name: '김구글',
         image: null,
+        image_path: null,
         introduction: '반가워요. 포카리입니다.',
       },
       { onConflict: 'user_id' },
@@ -250,7 +282,13 @@ describe('자기소개 수정·비우기 (US2)', () => {
 
     expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
     expect(supaMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '별명이', image: null, introduction: '새 소개입니다' },
+      {
+        user_id: 'uid-123',
+        name: '별명이',
+        image: null,
+        image_path: null,
+        introduction: '새 소개입니다',
+      },
       { onConflict: 'user_id' },
     )
     expect(intro).toHaveValue('새 소개입니다')
@@ -271,7 +309,13 @@ describe('자기소개 수정·비우기 (US2)', () => {
 
     expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
     expect(supaMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '별명이', image: null, introduction: null },
+      {
+        user_id: 'uid-123',
+        name: '별명이',
+        image: null,
+        image_path: null,
+        introduction: null,
+      },
       { onConflict: 'user_id' },
     )
     expect(intro).toHaveValue('')
@@ -316,7 +360,13 @@ describe('자기소개 수정·비우기 (US2)', () => {
     expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
     expect(supaMock.upsert).toHaveBeenCalledTimes(1)
     expect(supaMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '새별명', image: null, introduction: '소개도 바꿈' },
+      {
+        user_id: 'uid-123',
+        name: '새별명',
+        image: null,
+        image_path: null,
+        introduction: '소개도 바꿈',
+      },
       { onConflict: 'user_id' },
     )
   })
@@ -337,7 +387,13 @@ describe('자기소개 수정·비우기 (US2)', () => {
 
     expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
     expect(supaMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '새별명', image: null, introduction: '기존 소개' },
+      {
+        user_id: 'uid-123',
+        name: '새별명',
+        image: null,
+        image_path: null,
+        introduction: '기존 소개',
+      },
       { onConflict: 'user_id' },
     )
   })
@@ -436,5 +492,102 @@ describe('길이 제한과 오류 상황 (US3)', () => {
 
     await userEvent.type(intro, ' 더')
     expect(screen.getByRole('button', { name: '변경 사항 저장' })).toBeEnabled()
+  })
+})
+
+// 숨겨진 파일 입력에 파일을 넣는다. input이 hidden이라 userEvent.upload 대신
+// change 이벤트를 직접 쏘고, FileReader 미리보기가 반영될 때까지 기다린다.
+async function pickFile(file: File) {
+  const input = document.querySelector('input[type="file"]') as HTMLInputElement
+  await act(async () => {
+    fireEvent.change(input, { target: { files: [file] } })
+  })
+  await screen.findByAltText('김구글 프로필 이미지')
+}
+
+describe('프로필 이미지 (Supabase Storage 업로드)', () => {
+  const FIXED_UUID = '11111111-2222-4333-8444-555555555555'
+
+  test('파일을 선택하면 미리보기만 뜨고 업로드는 일어나지 않는다', async () => {
+    renderMe()
+    await openForm('김구글')
+
+    await pickFile(new File(['img'], 'cat.png', { type: 'image/png' }))
+
+    expect(storageMock.upload).not.toHaveBeenCalled()
+    // 파일 선택만으로도 저장 버튼은 활성화된다.
+    expect(screen.getByRole('button', { name: '변경 사항 저장' })).toBeEnabled()
+  })
+
+  test('저장을 누르면 uuid 파일명으로 업로드하고 image_path를 저장한다', async () => {
+    const uuidSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue(FIXED_UUID)
+    try {
+      renderMe()
+      await openForm('김구글')
+      const file = new File(['img'], 'cat.png', { type: 'image/png' })
+      await pickFile(file)
+
+      await userEvent.click(screen.getByRole('button', { name: '변경 사항 저장' }))
+
+      expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
+      expect(storageMock.upload).toHaveBeenCalledWith(`${FIXED_UUID}.png`, file, {
+        contentType: 'image/png',
+      })
+      expect(supaMock.upsert).toHaveBeenCalledWith(
+        {
+          user_id: 'uid-123',
+          name: '김구글',
+          image: null,
+          image_path: `${FIXED_UUID}.png`,
+          introduction: null,
+        },
+        { onConflict: 'user_id' },
+      )
+    } finally {
+      uuidSpy.mockRestore()
+    }
+  })
+
+  test('제거 후 저장하면 image_path가 null로 저장되고 이전 파일이 삭제된다', async () => {
+    supaMock.state.profiles['uid-123'] = {
+      name: '별명이',
+      image: null,
+      introduction: null,
+      image_path: 'old.png',
+    }
+    renderMe()
+    await openForm('별명이')
+    // image_path가 있으므로 조립 URL 아바타와 제거 버튼이 보인다.
+    await userEvent.click(screen.getByRole('button', { name: /제거/ }))
+
+    await userEvent.click(screen.getByRole('button', { name: '변경 사항 저장' }))
+
+    expect(await screen.findByText('저장되었습니다.')).toBeInTheDocument()
+    expect(storageMock.upload).not.toHaveBeenCalled()
+    expect(supaMock.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'uid-123',
+        name: '별명이',
+        image: null,
+        image_path: null,
+        introduction: null,
+      },
+      { onConflict: 'user_id' },
+    )
+    expect(storageMock.remove).toHaveBeenCalledWith(['old.png'])
+  })
+
+  test('업로드가 실패하면 오류 안내가 뜨고 DB 저장은 일어나지 않는다', async () => {
+    storageMock.state.uploadError = { message: 'quota exceeded' }
+    renderMe()
+    await openForm('김구글')
+    await pickFile(new File(['img'], 'cat.png', { type: 'image/png' }))
+
+    await userEvent.click(screen.getByRole('button', { name: '변경 사항 저장' }))
+
+    expect(
+      await screen.findByText('저장하지 못했어요. 잠시 후 다시 시도해 주세요.'),
+    ).toBeInTheDocument()
+    expect(supaMock.upsert).not.toHaveBeenCalled()
   })
 })
