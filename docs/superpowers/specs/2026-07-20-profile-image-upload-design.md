@@ -128,3 +128,14 @@ NEXT_PUBLIC_PROFILE_IMAGE_BASE_URL=https://<project-ref>.supabase.co/storage/v1/
 - `app/me/page.test.tsx`: 파일 선택 시 업로드가 **호출되지 않음**(저장 시점 업로드) 검증,
   저장 클릭 시 `imageFile` 전달 검증.
 - 테스트의 Supabase는 모킹이므로, 구현 후 브라우저 실기 확인(업로드→새로고침→표시→제거) 필수.
+
+## 운영 노트 (2026-07-20 최종 리뷰 반영, 사용자 승인)
+
+- **INSERT 정책 트레이드오프 수용**: 버킷 루트에 uuidv4 파일명을 쓰는 구조상 INSERT 정책에 사용자별
+  경로 제약을 걸 수 없다. 로그인 사용자는 누구나 이 버킷에 업로드할 수 있다(남의 파일 수정·삭제는 불가,
+  5MB·image/* 제한은 적용됨). 사용자 규모가 작은 현 단계에서는 수용하기로 결정.
+  향후 하드닝 시: `{uid}/{uuid}.{ext}` 경로 + `(storage.foldername(name))[1] = auth.uid()::text` 제약.
+- **후속 개선 후보** (머지 비차단, 최종 리뷰 Minor): ① `removeProfileImage`가 resolved `{error}`를
+  `console.warn`으로 남기기 ② 확장자 허용 목록(`/^[a-z0-9]+$/` 불일치 시 MIME 폴백) ③ 업로드 실패 후
+  재시도(pendingFile 생존) 단언 테스트 ④ 대문자 확장자 정규화 테스트 ⑤ `allowed_mime_types`를
+  jpeg/png/webp/gif로 좁히기(SVG 배제) ⑥ 동시 세션 경합 한계 문서화.
