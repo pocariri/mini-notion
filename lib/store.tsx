@@ -12,6 +12,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import { profileImageUrl, removeProfileImage, uploadProfileImage } from './storage'
 import { THEME_KEY, parseStoredTheme, type Theme } from './theme'
 
 export type User = {
@@ -19,6 +20,15 @@ export type User = {
   email: string
   image: string | null
   introduction: string | null
+}
+
+// updateUser 입력. imageFile: File = 새 이미지로 교체(스토리지 업로드),
+// null = 제거, undefined = 변경 없음. 이미지가 문자열로 들어오는 경로는 없다 —
+// 저장은 항상 스토리지 경로(image_path)를 통한다.
+export type UserUpdate = {
+  nickname?: string
+  introduction?: string | null
+  imageFile?: File | null
 }
 
 // public.page 한 행. 저장 구조가 확정되어 있어 이 네 가지가 담을 수 있는 전부다.
@@ -52,7 +62,7 @@ type Store = {
   retryProfile: () => void
   login: () => Promise<{ error: string | null }>
   logout: () => Promise<void>
-  updateUser: (patch: Partial<User>) => Promise<{ error: string | null }>
+  updateUser: (patch: UserUpdate) => Promise<{ error: string | null }>
   createPage: (title?: string, content?: string) => Promise<string | null>
   updatePage: (id: string, patch: Partial<Pick<Page, 'title' | 'content'>>) => void
   deletePage: (id: string) => Promise<void>
@@ -83,6 +93,8 @@ const LEGACY_PAGES_KEY = 'mini-notion:posts'
 type Profile = {
   name: string | null
   image: string | null
+  // Storage 파일명(버킷명 이후 부분). 표시 URL은 profileImageUrl()이 조립한다.
+  image_path: string | null
   introduction: string | null
 }
 
@@ -239,7 +251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     supabase
       .from('profile')
-      .select('name, image, introduction')
+      .select('name, image, image_path, introduction')
       .eq('user_id', uid)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -252,6 +264,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setProfile({
             name: data.name,
             image: data.image,
+            image_path: data.image_path ?? null,
             introduction: data.introduction,
           })
         setProfileStatus('ready')
@@ -329,24 +342,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), [])
 
   const updateUser = useCallback(
-    async (patch: Partial<User>): Promise<{ error: string | null }> => {
+    async (patch: UserUpdate): Promise<{ error: string | null }> => {
       if (!uid || !authUser) return { error: '로그인이 필요합니다.' }
       // 조회가 끝나지 않았거나 실패한 상태의 저장은 profile ?? base 폴백으로
       // DB 행 전체를 기본값으로 덮어쓰는 경로다 — 게이트웨이에서 차단한다(FR-020).
       if (profileStatus !== 'ready')
         return { error: '프로필을 불러오지 못해 저장할 수 없습니다. 다시 시도해 주세요.' }
       const { base } = authUser
+      const prevPath = profile?.image_path ?? null
+
+      // 이미지 입력: File = 스토리지에 올리고 경로만 저장, null = 제거, undefined = 유지.
+      let nextImage: string | null
+      let nextPath: string | null
+      let uploadedPath: string | null = null
+      if (patch.imageFile) {
+        const { path, error } = await uploadProfileImage(patch.imageFile)
+        if (!path) return { error: error ?? '이미지를 업로드하지 못했습니다.' }
+        uploadedPath = path
+        nextPath = path
+        nextImage = null
+      } else if (patch.imageFile === null) {
+        nextPath = null
+        nextImage = null
+      } else {
+        nextPath = prevPath
+        nextImage = profile ? profile.image : base.image
+      }
+
       const next: Profile = {
         name:
           patch.nickname !== undefined
             ? patch.nickname
             : (profile?.name ?? base.nickname),
-        image:
-          'image' in patch
-            ? (patch.image ?? null)
-            : profile
-              ? profile.image
-              : base.image,
+        image: nextImage,
+        image_path: nextPath,
         introduction:
           'introduction' in patch
             ? (patch.introduction ?? null)
@@ -355,7 +384,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase
         .from('profile')
         .upsert({ user_id: uid, ...next }, { onConflict: 'user_id' })
-      if (error) return { error: error.message }
+      if (error) {
+        // 방금 올린 파일이 DB에 연결되지 못했다 — 고아가 되기 전에 지운다.
+        if (uploadedPath) void removeProfileImage(uploadedPath)
+        return { error: error.message }
+      }
+      // 교체·제거로 더 이상 참조되지 않는 이전 파일 정리(best-effort).
+      if (prevPath && prevPath !== nextPath) void removeProfileImage(prevPath)
       setProfile(next)
       return { error: null }
     },
@@ -501,6 +536,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (uid && authUser) {
       // 로컬만 비우면 재로그인 시 되살아난다. 서버에서도 지운다.
       await supabase.from('page').delete().eq('user_id', uid)
+      const uploadedPath = profile?.image_path ?? null
       await supabase
         .from('profile')
         .upsert(
@@ -508,10 +544,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             user_id: uid,
             name: authUser.base.nickname,
             image: authUser.base.image,
+            image_path: null,
             introduction: null,
           },
           { onConflict: 'user_id' },
         )
+      // 업로드했던 프로필 이미지 파일도 정리한다(best-effort).
+      if (uploadedPath) void removeProfileImage(uploadedPath)
     }
     pendingRef.current.clear()
     for (const timer of timersRef.current.values()) clearTimeout(timer)
@@ -519,7 +558,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPages([])
     setProfile(null)
     await supabase.auth.signOut()
-  }, [uid, authUser])
+  }, [uid, authUser, profile])
 
   const user = useMemo<User | null>(() => {
     if (!authUser) return null
@@ -527,7 +566,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return {
       nickname: profile?.name ?? base.nickname,
       email: base.email,
-      image: profile ? profile.image : base.image,
+      // 스토리지 경로가 있으면 조립 URL, 없으면 DB의 image(구글 아바타 등), 행이 없으면 세션 기본값.
+      image: profile
+        ? profile.image_path
+          ? profileImageUrl(profile.image_path)
+          : profile.image
+        : base.image,
       introduction: profile?.introduction ?? null,
     }
   }, [authUser, profile])

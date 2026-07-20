@@ -48,7 +48,12 @@ const dbMock = vi.hoisted(() => {
   const state = {
     profiles: {} as Record<
       string,
-      { name: string | null; image: string | null; introduction: string | null }
+      {
+        name: string | null
+        image: string | null
+        introduction: string | null
+        image_path?: string | null
+      }
     >,
     upsertError: null as { message: string } | null,
     pages: [] as PageRow[],
@@ -70,12 +75,14 @@ const dbMock = vi.hoisted(() => {
       name: string | null
       image: string | null
       introduction?: string | null
+      image_path?: string | null
     }) => {
       if (state.upsertError) return { error: state.upsertError }
       state.profiles[row.user_id] = {
         name: row.name,
         image: row.image,
         introduction: row.introduction ?? null,
+        image_path: row.image_path ?? null,
       }
       return { error: null }
     },
@@ -229,6 +236,26 @@ const dbMock = vi.hoisted(() => {
   }
 })
 
+// Supabase Storage의 in-memory 대역. 스토어는 lib/storage.ts를 통해 이 경계를 쓴다.
+const storageMock = vi.hoisted(() => {
+  const state = { uploadError: null as { message: string } | null }
+  const upload = vi.fn(async () => {
+    if (state.uploadError) return { data: null, error: state.uploadError }
+    return { data: {}, error: null }
+  })
+  const remove = vi.fn(async () => ({ data: null, error: null }))
+  return {
+    state,
+    upload,
+    remove,
+    reset() {
+      state.uploadError = null
+      upload.mockClear()
+      remove.mockClear()
+    },
+  }
+})
+
 vi.mock('./supabase', () => ({
   supabase: {
     auth: {
@@ -250,6 +277,9 @@ vi.mock('./supabase', () => ({
       signOut: authMock.signOut,
     },
     from: (table: string) => dbMock.from(table),
+    storage: {
+      from: () => ({ upload: storageMock.upload, remove: storageMock.remove }),
+    },
   },
 }))
 
@@ -287,6 +317,7 @@ beforeEach(() => {
   dbMock.insert.mockClear()
   dbMock.update.mockClear()
   dbMock.remove.mockClear()
+  storageMock.reset()
 })
 
 describe('인증 (Supabase Google OAuth)', () => {
@@ -387,6 +418,7 @@ describe('프로필 (Supabase public.profile 연동)', () => {
         user_id: 'uid-123',
         name: '나만의별명',
         image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        image_path: null,
         introduction: null,
       },
       { onConflict: 'user_id' },
@@ -401,12 +433,12 @@ describe('프로필 (Supabase public.profile 연동)', () => {
     await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
 
     await act(async () => {
-      await result.current.updateUser({ image: null })
+      await result.current.updateUser({ imageFile: null })
     })
 
     expect(result.current.user?.image).toBeNull()
     expect(dbMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '김구글', image: null, introduction: null },
+      { user_id: 'uid-123', name: '김구글', image: null, image_path: null, introduction: null },
       { onConflict: 'user_id' },
     )
   })
@@ -439,6 +471,202 @@ describe('프로필 (Supabase public.profile 연동)', () => {
   })
 })
 
+describe('프로필 이미지 (Supabase Storage + image_path)', () => {
+  const TEST_BASE = 'https://test.supabase.co/storage/v1/object/public/profile-image'
+
+  async function renderProfileReady() {
+    const utils = await renderStore()
+    act(() => {
+      authMock.fire('SIGNED_IN', googleSession)
+    })
+    await waitFor(() => expect(utils.result.current.profileStatus).toBe('ready'))
+    return utils
+  }
+
+  test('imageFile(File)을 주면 업로드 후 image_path를 upsert하고 user.image가 조립 URL이 된다', async () => {
+    const uuidSpy = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValue('11111111-2222-4333-8444-555555555555')
+    try {
+      const { result } = await renderProfileReady()
+      const file = new File(['img'], 'cat.png', { type: 'image/png' })
+
+      await act(async () => {
+        const { error } = await result.current.updateUser({ imageFile: file })
+        expect(error).toBeNull()
+      })
+
+      expect(storageMock.upload).toHaveBeenCalledWith(
+        '11111111-2222-4333-8444-555555555555.png',
+        file,
+        { contentType: 'image/png' },
+      )
+      expect(dbMock.upsert).toHaveBeenCalledWith(
+        {
+          user_id: 'uid-123',
+          name: '김구글',
+          image: null,
+          image_path: '11111111-2222-4333-8444-555555555555.png',
+          introduction: null,
+        },
+        { onConflict: 'user_id' },
+      )
+      expect(result.current.user?.image).toBe(
+        `${TEST_BASE}/11111111-2222-4333-8444-555555555555.png`,
+      )
+    } finally {
+      uuidSpy.mockRestore()
+    }
+  })
+
+  test('이미지를 교체하면 이전 image_path 파일을 삭제한다', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: null,
+      image_path: 'old.png',
+    }
+    const { result } = await renderProfileReady()
+
+    await act(async () => {
+      await result.current.updateUser({
+        imageFile: new File(['img'], 'new.png', { type: 'image/png' }),
+      })
+    })
+
+    expect(storageMock.remove).toHaveBeenCalledWith(['old.png'])
+  })
+
+  test('업로드 실패 시 upsert 없이 에러를 반환하고 user는 그대로다', async () => {
+    storageMock.state.uploadError = { message: 'quota exceeded' }
+    const { result } = await renderProfileReady()
+
+    let error: string | null = null
+    await act(async () => {
+      ;({ error } = await result.current.updateUser({
+        imageFile: new File(['img'], 'cat.png', { type: 'image/png' }),
+      }))
+    })
+
+    expect(error).toBe('quota exceeded')
+    expect(dbMock.upsert).not.toHaveBeenCalled()
+    expect(result.current.user?.image).toBe(
+      'https://lh3.googleusercontent.com/a/photo.jpg',
+    )
+  })
+
+  test('업로드 성공 후 upsert가 실패하면 방금 올린 파일을 삭제한다(고아 방지)', async () => {
+    const uuidSpy = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValue('11111111-2222-4333-8444-555555555555')
+    try {
+      dbMock.state.upsertError = { message: 'boom' }
+      const { result } = await renderProfileReady()
+
+      let error: string | null = null
+      await act(async () => {
+        ;({ error } = await result.current.updateUser({
+          imageFile: new File(['img'], 'cat.png', { type: 'image/png' }),
+        }))
+      })
+
+      expect(error).toBe('boom')
+      expect(storageMock.remove).toHaveBeenCalledWith([
+        '11111111-2222-4333-8444-555555555555.png',
+      ])
+    } finally {
+      uuidSpy.mockRestore()
+    }
+  })
+
+  test('imageFile: null은 image·image_path를 null로 저장하고 이전 파일을 삭제한다', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: null,
+      image_path: 'old.png',
+    }
+    const { result } = await renderProfileReady()
+
+    await act(async () => {
+      await result.current.updateUser({ imageFile: null })
+    })
+
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      { user_id: 'uid-123', name: '별명', image: null, image_path: null, introduction: null },
+      { onConflict: 'user_id' },
+    )
+    expect(storageMock.remove).toHaveBeenCalledWith(['old.png'])
+    expect(result.current.user?.image).toBeNull()
+  })
+
+  test('저장된 image_path는 재로그인 시 조립된 URL로 복원된다', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: null,
+      image_path: 'saved.png',
+    }
+    authMock.state.session = googleSession
+
+    const { result } = await renderStore()
+
+    await waitFor(() =>
+      expect(result.current.user?.image).toBe(`${TEST_BASE}/saved.png`),
+    )
+  })
+
+  test('imageFile 없는 patch(별명만 저장)는 image_path를 유지하고 파일을 삭제하지 않는다', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: null,
+      image_path: 'keep.png',
+    }
+    const { result } = await renderProfileReady()
+
+    await act(async () => {
+      await result.current.updateUser({ nickname: '새별명' })
+    })
+
+    expect(dbMock.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'uid-123',
+        name: '새별명',
+        image: null,
+        image_path: 'keep.png',
+        introduction: null,
+      },
+      { onConflict: 'user_id' },
+    )
+    expect(storageMock.remove).not.toHaveBeenCalled()
+  })
+
+  test('resetAll은 업로드된 파일을 삭제하고 image_path를 null로 되돌린다', async () => {
+    dbMock.state.profiles['uid-123'] = {
+      name: '별명',
+      image: null,
+      introduction: null,
+      image_path: 'uploaded.png',
+    }
+    authMock.state.session = googleSession
+    const { result } = await renderStore()
+    await waitFor(() => expect(result.current.profileStatus).toBe('ready'))
+
+    await act(async () => {
+      await result.current.resetAll()
+    })
+
+    expect(storageMock.remove).toHaveBeenCalledWith(['uploaded.png'])
+    expect(dbMock.state.profiles['uid-123']).toEqual({
+      name: '김구글',
+      image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+      introduction: null,
+      image_path: null,
+    })
+  })
+})
+
 describe('자기소개 (public.profile.introduction 연동)', () => {
   test('조회는 introduction 컬럼을 포함하고 저장된 자기소개를 user에 파생한다 (FR-008)', async () => {
     dbMock.state.profiles['uid-123'] = {
@@ -453,7 +681,7 @@ describe('자기소개 (public.profile.introduction 연동)', () => {
     await waitFor(() =>
       expect(result.current.user?.introduction).toBe('안녕하세요.\n저장된 소개입니다.'),
     )
-    expect(dbMock.state.lastSelect).toBe('name, image, introduction')
+    expect(dbMock.state.lastSelect).toBe('name, image, image_path, introduction')
   })
 
   test('프로필 행이 없으면 introduction은 null이고 오류가 아니다', async () => {
@@ -483,6 +711,7 @@ describe('자기소개 (public.profile.introduction 연동)', () => {
         user_id: 'uid-123',
         name: '김구글',
         image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        image_path: null,
         introduction: '한 줄 소개',
       },
       { onConflict: 'user_id' },
@@ -505,7 +734,7 @@ describe('자기소개 (public.profile.introduction 연동)', () => {
 
     expect(result.current.user?.introduction).toBeNull()
     expect(dbMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '별명', image: null, introduction: null },
+      { user_id: 'uid-123', name: '별명', image: null, image_path: null, introduction: null },
       { onConflict: 'user_id' },
     )
   })
@@ -526,7 +755,13 @@ describe('자기소개 (public.profile.introduction 연동)', () => {
 
     expect(result.current.user?.introduction).toBe('기존 소개')
     expect(dbMock.upsert).toHaveBeenCalledWith(
-      { user_id: 'uid-123', name: '새별명', image: null, introduction: '기존 소개' },
+      {
+        user_id: 'uid-123',
+        name: '새별명',
+        image: null,
+        image_path: null,
+        introduction: '기존 소개',
+      },
       { onConflict: 'user_id' },
     )
   })
@@ -664,6 +899,7 @@ describe('resetAll', () => {
       name: '김구글',
       image: 'https://lh3.googleusercontent.com/a/photo.jpg',
       introduction: null,
+      image_path: null,
     })
     expect(authMock.signOut).toHaveBeenCalled()
   })
@@ -687,6 +923,7 @@ describe('resetAll', () => {
         user_id: 'uid-123',
         name: '김구글',
         image: 'https://lh3.googleusercontent.com/a/photo.jpg',
+        image_path: null,
         introduction: null,
       },
       { onConflict: 'user_id' },
