@@ -1,3 +1,8 @@
+// lib/storage.ts가 모듈 로드 시점에 요구하는 공개 URL 앞부분(스토리지 주소 + 버킷명).
+// 끝 슬래시를 일부러 붙여 조립 시 정규화까지 실전과 같이 검증한다.
+process.env.NEXT_PUBLIC_PROFILE_IMAGE_BASE_URL =
+  'https://test.supabase.co/storage/v1/object/public/profile-image/'
+
 import '@testing-library/jest-dom/vitest'
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
